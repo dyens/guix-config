@@ -3,3 +3,6 @@
 *.iso
 .guix-vm.pid
 .known_hosts.guixvm
+*.swp
+*.swo
+*~
