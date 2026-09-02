@@ -1,24 +1,130 @@
 # guix-config
 
-Конфигурация Guix-системы и домашнего окружения. Живёт на хосте
-(`~/vms/guix-config`), пробрасывается в VM по 9p в `/mnt/guix-config`.
-Правите в привычном редакторе на Fedora — применяете внутри VM,
-без коммитов и scp на каждую итерацию.
+Декларативная конфигурация GNU Guix: система, домашнее окружение и пин
+версии самого Guix. Всё воспроизводится из этих файлов — на новой машине
+или в новой VM не остаётся ручных шагов, кроме подстановки UUID дисков.
+
+Живёт на хосте (`~/vms/guix-config`), в VM пробрасывается по 9p в
+`/mnt/guix-config`. Правите в привычном редакторе на Fedora — применяете
+внутри VM, без коммитов и scp на каждую итерацию.
+
+Ключевые решения:
+
+- **Display manager'а нет.** Графика поднимается из home через `startx`.
+- **i3 и всё пользовательское — в `home/`**, система о графике не знает.
+- **Подстановки идут через зеркало Яндекса**, `ci.guix.gnu.org` исключён.
+
+---
+
+## Установка с нуля
+
+### 1. Получить репозиторий
+
+```sh
+guix install git                     # если git ещё нет
+git clone <repo-url> ~/guix-config
+cd ~/guix-config
+```
+
+### 2. Взять пиннутую версию Guix
+
+`channels.scm` фиксирует точный коммит Guix. Это то, что делает установку
+воспроизводимой: тот же конфиг на другом коммите даст другие версии
+пакетов.
+
+```sh
+guix pull -C channels.scm \
+  --substitute-urls='https://mirror.yandex.ru/mirrors/guix https://bordeaux.guix.gnu.org'
+hash guix
+```
+
+Флаг `--substitute-urls` тут нужен руками: зеркало прописано в конфиге
+системы, но конфиг ещё не применён. Это неустранимая проблема курицы
+и яйца, дальше флаг не понадобится.
+
+Альтернатива без `guix pull` — выполнять команды через `time-machine`,
+он берёт версию прямо из пина и не трогает локальный Guix:
+
+```sh
+guix time-machine -C channels.scm -- system reconfigure systems/<host>.scm
+```
+
+### 3. Описать машину
+
+Скопируйте заготовку и заполните UUID:
+
+```sh
+cp systems/laptop.scm systems/myhost.scm
+lsblk -f                             # или blkid
+```
+
+Подставить нужно `#:root-device`, `#:swap-device`, UUID ESP и
+`#:bootloader-targets`. В заготовке стоят нули — пока их не заменить,
+`reconfigure` упадёт на проверке файловых систем. Это намеренно: лучше
+громкая ошибка, чем незагружающаяся система.
+
+### 4. Применить
+
+```sh
+sudo -i guix system reconfigure ~/guix-config/systems/myhost.scm
+guix home reconfigure ~/guix-config/home/dyens.scm
+sudo reboot
+```
+
+### 5. Войти
+
+Display manager'а нет. Логинитесь на tty1, затем:
+
+```sh
+startx
+```
+
+---
 
 ## Структура
 
 | Путь | Что описывает | Команда применения |
 |---|---|---|
 | `channels.scm` | версию самого Guix (пин коммита) | `guix pull -C channels.scm` |
-| `systems/vm.scm` | систему: ядро, сервисы, юзеров | `sudo -i guix system reconfigure` |
-| `home/dyens.scm` | dotfiles и пакеты пользователя | `guix home reconfigure` |
+| `systems/base.scm` | общая часть всех машин | — (подключается модулем) |
+| `systems/vm.scm` | dev-VM под QEMU | `sudo -i guix system reconfigure` |
+| `systems/laptop.scm` | заготовка для физической машины (UEFI) | `sudo -i guix system reconfigure` |
+| `home/dyens.scm` | dotfiles, пакеты, i3, startx | `guix home reconfigure` |
 | `files/` | сырые dotfiles, подключаемые через `local-file` | — |
 | `run-vm.sh` | запуск qemu с ssh + 9p (выполняется на ХОСТЕ) | — |
 
-Три слоя независимы, и без первого остальные два невоспроизводимы:
-тот же `vm.scm` на другом коммите Guix даст другие версии пакетов.
+Три слоя — Guix, система, home — независимы, и без первого остальные два
+невоспроизводимы.
 
-## Запуск VM (на хосте)
+### Как устроен `systems/`
+
+`base.scm` — модуль с процедурой `make-system`, где собрано всё общее:
+пользователь, локаль, раскладка, зеркало подстановок, набор сервисов.
+Файлы машин передают в неё только машинно-зависимое:
+
+```scheme
+(add-to-load-path (dirname (current-filename)))
+(use-modules (gnu) (base))
+
+(make-system
+ #:host-name "dyens"
+ #:root-device (uuid "981499e3-..." 'ext4)
+ #:bootloader-targets (list "/dev/vda"))
+```
+
+Новая машина — файл на полтора десятка строк. Общие изменения правятся
+в `base.scm` и разъезжаются по всем машинам сразу.
+
+Если `add-to-load-path` не сработает (Guile не смог определить путь
+исходника), укажите каталог модуля флагом:
+
+```sh
+sudo -i guix system reconfigure -L ~/guix-config/systems ~/guix-config/systems/vm.scm
+```
+
+---
+
+## Ежедневный цикл: VM на этом хосте
 
 ```sh
 ./run-vm.sh            # с графикой
@@ -30,90 +136,91 @@
 Переопределяется через env: `GUIX_VM_MEM`, `GUIX_VM_CPUS`,
 `GUIX_VM_SSH_PORT`, `GUIX_VM_DISK`, `GUIX_VM_USER`.
 
-## Первый шаг после проброса (внутри VM)
+Скрипт передаёт `-virtfs local,path=<repo>,mount_tag=guixcfg,security_model=none`,
+а `systems/vm.scm` монтирует этот тег в `/mnt/guix-config` при загрузке.
+`security_model=none` означает, что uid в госте совпадают с хостовыми,
+поэтому из VM в каталог можно и писать.
 
-Каталог монтируется автоматически, но только после того, как
-`systems/vm.scm` с записью про 9p будет применён. Первый раз —
-руками:
-
-```sh
-sudo mkdir -p /mnt/guix-config
-sudo mount -t 9p -o trans=virtio,version=9p2000.L,msize=104857600 \
-     guixcfg /mnt/guix-config
-```
-
-Дальше применяем конфиг уже из репозитория, и монтирование станет
-автоматическим:
+Внутри VM (алиасы прописаны в `home/dyens.scm`):
 
 ```sh
-sudo -i guix system reconfigure /mnt/guix-config/systems/vm.scm
-guix home reconfigure /mnt/guix-config/home/dyens.scm
+sysrec      # sudo -i guix system reconfigure /mnt/guix-config/systems/vm.scm
+homerec     # guix home reconfigure /mnt/guix-config/home/dyens.scm
 ```
 
-## Зафиксировать версию Guix
+### Обновить пин
 
-Сразу после удачного `guix pull`, пока состояние рабочее:
+После удачного `guix pull`, пока состояние рабочее:
 
 ```sh
 guix describe -f channels > /mnt/guix-config/channels.scm
-git -C /mnt/guix-config commit -am "pin guix $(date +%F)"
+git -C ~/vms/guix-config commit -am "pin guix $(date +%F)"
 ```
 
-`channels.scm` в репозитории сейчас — **заглушка** без пина.
-Замените, иначе воспроизводимости нет.
+Файл сразу появится в репозитории на хосте — 9p работает в обе стороны.
+Этот коммит — ваша точка отката.
 
-## Развернуть на новой VM
+---
 
-### Вариант А — из установщика
+## Перенос на другую машину
 
-Минимальная установка с ISO, потом:
+Переносится не «система», а текстовые файлы плюс пин.
+
+| Файл | Портируемость |
+|---|---|
+| `channels.scm` | полностью — это и есть гарантия одинаковости |
+| `home/dyens.scm`, `files/` | полностью, включая чужой дистрибутив |
+| `systems/base.scm` | полностью |
+| `systems/<host>.scm` | свой на каждую машину: UUID, загрузчик, hostname |
+| `run-vm.sh` | только для VM-хостов |
+
+### На чужом дистрибутиве (Fedora, Ubuntu)
+
+Работает **только** home-часть, и работает хорошо: тот же набор пакетов,
+тот же bashrc, те же алиасы поверх чужой системы.
 
 ```sh
-# зеркало ещё не настроено, поэтому первый pull — с флагом руками.
-# Это неустранимая проблема курицы и яйца.
-guix pull -C /mnt/guix-config/channels.scm \
-  --substitute-urls='https://mirror.yandex.ru/mirrors/guix https://bordeaux.guix.gnu.org'
-
-sudo -i guix system reconfigure /mnt/guix-config/systems/vm.scm
-guix home reconfigure /mnt/guix-config/home/dyens.scm
+guix pull -C channels.scm
+guix home reconfigure home/dyens.scm
 ```
 
-Дальше флаг не нужен: `substitute-urls` зашит в `systems/vm.scm`.
+`systems/` там неприменим — системой управляет дистрибутив. Сервис
+`home-startx-command-service-type` на такой машине стоит отключить:
+`startx` там свой.
 
-Не забыть подставить в `systems/vm.scm` реальные UUID корня и swap
-(`blkid`) — они привязаны к конкретному диску.
-
-### Вариант Б — готовый образ (быстро)
+### Готовый образ VM
 
 Собирает qcow2 прямо из конфига, минуя установщик:
 
 ```sh
-guix system image -t qcow2 --image-size=20G /mnt/guix-config/systems/vm.scm
+guix system image -t qcow2 --image-size=20G systems/vm.scm
 ```
 
-На выходе путь в `/gnu/store`. Копируете на хост — и каждая новая VM
-это `cp` образа плюс запуск. Секунды вместо получаса установки.
+На выходе путь в `/gnu/store`. Копируете на хост — и каждая новая VM это
+`cp` образа плюс запуск. Для образов корень принято описывать меткой
+(`(device (file-system-label "guix-root"))`), а не UUID: UUID текущей VM
+в новом образе не совпадёт.
 
-### Вариант В — `guix deploy`
+### `guix deploy`
 
-Накат конфига на уже работающие VM по SSH, без захода на каждую.
-Пригодится, когда машин станет больше одной.
+Накат конфига на работающие машины по SSH, без захода на каждую.
+Пригодится, когда их станет больше одной.
+
+---
 
 ## Графика: startx, без display manager
 
-Осознанное решение: display manager'а нет. GDM — тяжёлый GNOME-компонент,
-который тянет полстека ради экрана входа в i3, и он у нас уже сломался
-на отсутствующей GSettings-схеме. Вместо него `home-startx-command-service-type`
-кладёт `startx` в **домашний** профиль.
-
-Граница получается чистой:
+GDM — тяжёлый GNOME-компонент, который тянет полстека ради экрана входа
+в i3, и он ломался на отсутствующей GSettings-схеме `org.gnome.system.locale`.
+Вместо него `home-startx-command-service-type` кладёт `startx`
+в **домашний** профиль.
 
 | Слой | Что знает про графику |
 |---|---|
-| `systems/vm.scm` | ничего: ни WM, ни DM, ни `set-xorg-configuration`. Только раскладка для консоли и GRUB |
+| `systems/base.scm` | ничего: ни WM, ни DM. Только раскладка для консоли и GRUB |
 | `home/dyens.scm` | i3, шрифты, терминал, раскладка внутри X, сам `startx` |
 
-Порядок работы: логинитесь на tty1 → `startx` → i3.
+Порядок: логин на tty1 → `startx` → i3.
 
 `set-xorg-configuration` в системе использовать НЕЛЬЗЯ вместе со startx:
 конфигурация Xorg задаётся в `home-startx-command-service-type`, иначе
@@ -124,11 +231,13 @@ guix system image -t qcow2 --image-size=20G /mnt/guix-config/systems/vm.scm
 Сервис `home-xdg-configuration-files-service-type` в `home/dyens.scm`
 намеренно закомментирован. Под управлением Guix Home файл
 `~/.config/i3/config` становится read-only симлинком в стор, и мастер
-первого запуска i3 не сможет его создать. Порядок такой:
+первого запуска i3 не сможет его создать. Порядок:
 
 1. Первый `startx` — i3 предложит сгенерировать конфиг, согласитесь.
 2. `cp ~/.config/i3/config files/i3/config`
-3. Раскомментируйте сервис в `home/dyens.scm`, `guix home reconfigure`.
+3. Раскомментируйте сервис, `guix home reconfigure`.
+
+---
 
 ## Грабли
 
@@ -140,6 +249,13 @@ guix system image -t qcow2 --image-size=20G /mnt/guix-config/systems/vm.scm
 - **`sudo guix` ≠ `sudo -i guix`.** Без `-i` берётся guix из PATH
   пользователя, а не обновлённый root'овский, и reconfigure падает
   с «is not a descendant of».
-- **Раскладка по слоям**: X — после перелогина, консоль — после
-  reboot, GRUB — со следующего поколения.
+- **Shepherd банит сервис** после нескольких падений подряд
+  (`It is disabled`). Перед `herd start` нужен `herd enable`.
+- **Сервис GDM в shepherd называется `xorg-server`**, не `gdm`.
+  Актуально, если вернёте display manager.
+- **Файловая система без `mount-may-fail? #t`** роняет цель
+  `file-systems`, а с ней весь пользовательский стек. Для необязательных
+  монтирований флаг обязателен.
+- **Раскладка по слоям**: X — после перелогина, консоль — после reboot,
+  GRUB — со следующего поколения.
 - **Dotfiles read-only** после `guix home reconfigure` — правьте `files/`.
