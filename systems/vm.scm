@@ -32,7 +32,12 @@
   (packages (append (list (specification->package "i3-wm")
                           (specification->package "i3status")
                           (specification->package "dmenu")
-                          (specification->package "st"))
+                          (specification->package "st")
+                          ;; Без этого greeter GDM падает с SIGABRT:
+                          ;; "Settings schema 'org.gnome.system.locale'
+                          ;; is not installed" — GLib делает abort()
+                          ;; на отсутствующей схеме.
+                          (specification->package "gsettings-desktop-schemas"))
                     %base-packages))
 
   (services
