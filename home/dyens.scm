@@ -19,6 +19,7 @@
              (gnu home services)
              (gnu home services shells)
              (gnu home services desktop)   ; home-startx-command-service-type
+             (gnu home services gnupg)     ; home-gpg-agent-service-type
              (gnu packages)
              (gnu services xorg)           ; xorg-configuration
              (gnu system keyboard)         ; keyboard-layout
@@ -37,6 +38,11 @@
          ;; в систему ставить не нужно.
          "font-dejavu"
          "font-google-noto"
+         ;; Секреты: pass хранит токены в GPG-шифрованном git-репозитории.
+         ;; Приватные ssh-ключи через него НЕ гоняем — они генерируются
+         ;; на каждой машине отдельно и никуда не переносятся.
+         "password-store"
+         "gnupg"
          ;; Утилиты
          "git"
          "ripgrep"
@@ -58,6 +64,21 @@
               (keyboard-layout "us,ru"
                                #:options '("ctrl:swapcaps"
                                            "grp:rctrl_toggle")))))
+
+   ;; gpg-agent: нужен pass'у для расшифровки.
+   ;; pinentry-tty, а не графический: чтобы ввод пароля работал
+   ;; и в ssh-сессии без X, и в терминале под i3.
+   (service home-gpg-agent-service-type
+            (home-gpg-agent-configuration
+             (pinentry-program
+              (file-append (specification->package "pinentry-tty")
+                           "/bin/pinentry-tty"))
+             ;; Кэш парольной фразы: 1 час вместо дефолтных 10 минут.
+             (default-cache-ttl 3600)
+             (max-cache-ttl 7200)
+             ;; ssh-support? #t заставит gpg-agent подменить ssh-agent.
+             ;; Не включаем: ssh-ключи у нас обычные, по одному на машину.
+             (ssh-support? #f)))
 
    (service home-bash-service-type
             (home-bash-configuration
