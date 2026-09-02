@@ -75,12 +75,7 @@
                    home-files-service-type
                    `((".xinitrc" ,(local-file "../files/xinitrc"))))
 
-   ;; Конфиг i3 в ~/.config/i3/config.
-   ;; НЕ включено намеренно: своего конфига у вас пока нет, а под
-   ;; управлением Guix Home файл станет read-only, и мастер первого
-   ;; запуска i3 не сможет его создать. Дайте i3 сгенерировать конфиг,
-   ;; скопируйте его в files/i3/config, потом раскомментируйте.
-   ;; (simple-service 'dotfiles
-   ;;                 home-xdg-configuration-files-service-type
-   ;;                 `(("i3/config" ,(local-file "../files/i3/config"))))
+   (simple-service 'dotfiles
+                   home-xdg-configuration-files-service-type
+                   `(("i3/config" ,(local-file "../files/i3/config"))))
    )))

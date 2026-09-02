@@ -1,0 +1,7 @@
+# Запускается через startx -> xinit.
+# Правится здесь, в репозитории; ~/.xinitrc станет симлинком в /gnu/store.
+
+# Раскладку задавать не нужно: она приходит из xorg-configuration
+# в home-startx-command-service-type.
+
+exec i3
