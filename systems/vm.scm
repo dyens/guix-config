@@ -80,14 +80,18 @@
           ;; Каталог с этим репозиторием, проброшенный с хоста по 9p.
           ;; Требует запуска qemu с:
           ;;   -virtfs local,path=<repo>,mount_tag=guixcfg,security_model=none
-          ;; Если запускаете VM без проброса — смонтировать не выйдет,
-          ;; но загрузке это не мешает: сервис просто останется failed.
+          ;;
+          ;; mount-may-fail? ОБЯЗАТЕЛЕН. Без него неудачное монтирование
+          ;; роняет цель file-systems, от которой зависит user-processes,
+          ;; а от неё — весь графический стек (dbus, elogind, gdm).
+          ;; Результат: sshd поднимается, а GDM/i3 — нет.
           ;; UUID-ов у 9p нет, поэтому check? отключён.
           (file-system
             (mount-point "/mnt/guix-config")
             (device "guixcfg")
             (type "9p")
             (options "trans=virtio,version=9p2000.L,msize=104857600")
+            (mount-may-fail? #t)
             (check? #f)
             (create-mount-point? #t))
 
