@@ -99,6 +99,37 @@ guix system image -t qcow2 --image-size=20G /mnt/guix-config/systems/vm.scm
 Накат конфига на уже работающие VM по SSH, без захода на каждую.
 Пригодится, когда машин станет больше одной.
 
+## Графика: startx, без display manager
+
+Осознанное решение: display manager'а нет. GDM — тяжёлый GNOME-компонент,
+который тянет полстека ради экрана входа в i3, и он у нас уже сломался
+на отсутствующей GSettings-схеме. Вместо него `home-startx-command-service-type`
+кладёт `startx` в **домашний** профиль.
+
+Граница получается чистой:
+
+| Слой | Что знает про графику |
+|---|---|
+| `systems/vm.scm` | ничего: ни WM, ни DM, ни `set-xorg-configuration`. Только раскладка для консоли и GRUB |
+| `home/dyens.scm` | i3, шрифты, терминал, раскладка внутри X, сам `startx` |
+
+Порядок работы: логинитесь на tty1 → `startx` → i3.
+
+`set-xorg-configuration` в системе использовать НЕЛЬЗЯ вместе со startx:
+конфигурация Xorg задаётся в `home-startx-command-service-type`, иначе
+получаются две конкурирующие настройки.
+
+### Конфиг i3
+
+Сервис `home-xdg-configuration-files-service-type` в `home/dyens.scm`
+намеренно закомментирован. Под управлением Guix Home файл
+`~/.config/i3/config` становится read-only симлинком в стор, и мастер
+первого запуска i3 не сможет его создать. Порядок такой:
+
+1. Первый `startx` — i3 предложит сгенерировать конфиг, согласитесь.
+2. `cp ~/.config/i3/config files/i3/config`
+3. Раскомментируйте сервис в `home/dyens.scm`, `guix home reconfigure`.
+
 ## Грабли
 
 - **`guix-daemon` не перезапускается сам** после reconfigure. Смена
