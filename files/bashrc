@@ -1,0 +1,17 @@
+# Подключается из home/dyens.scm через home-bash-service-type.
+# Правится ЗДЕСЬ, а не в ~/.bashrc — тот станет симлинком в /gnu/store
+# и будет read-only.
+
+# Guix профили в PATH
+[ -f "$HOME/.guix-profile/etc/profile" ] && . "$HOME/.guix-profile/etc/profile"
+
+export EDITOR=vim
+export HISTSIZE=10000
+export HISTFILESIZE=100000
+export HISTCONTROL=ignoreboth
+shopt -s histappend checkwinsize
+
+PS1='\[\033[1;32m\]\u@\h\[\033[0m\] \[\033[1;34m\]\w\[\033[0m\]\$ '
+
+# Быстрый доступ к конфигам, проброшенным с хоста
+export GUIX_CONFIG=/mnt/guix-config

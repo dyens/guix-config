@@ -1,0 +1,5 @@
+*.qcow2
+*.img
+*.iso
+.guix-vm.pid
+.known_hosts.guixvm
