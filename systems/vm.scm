@@ -12,6 +12,8 @@
 (operating-system
   (locale "en_US.utf8")
   (timezone "Europe/Moscow")
+  ;; Раскладка уровня системы = консольные tty + GRUB.
+  ;; Раскладка внутри X задаётся отдельно, в home/dyens.scm.
   (keyboard-layout (keyboard-layout "us,ru"
                                     #:options '("ctrl:swapcaps"
                                                 "grp:rctrl_toggle")))
@@ -26,19 +28,9 @@
                  (supplementary-groups '("wheel" "netdev" "audio" "video")))
                 %base-user-accounts))
 
-  ;; Пакеты уровня системы. Пользовательские пакеты живут не здесь,
-  ;; а в home/dyens.scm — держите эту границу, иначе home-конфиг
-  ;; перестанет быть самодостаточным.
-  (packages (append (list (specification->package "i3-wm")
-                          (specification->package "i3status")
-                          (specification->package "dmenu")
-                          (specification->package "st")
-                          ;; Без этого greeter GDM падает с SIGABRT:
-                          ;; "Settings schema 'org.gnome.system.locale'
-                          ;; is not installed" — GLib делает abort()
-                          ;; на отсутствующей схеме.
-                          (specification->package "gsettings-desktop-schemas"))
-                    %base-packages))
+  ;; Пакеты уровня системы — только то, что нужно ДО входа пользователя.
+  ;; i3, шрифты, терминал и сам startx живут в home/dyens.scm.
+  (packages %base-packages)
 
   (services
    (append (list
@@ -50,17 +42,23 @@
             ;;           (password-authentication? #f)
             ;;           (authorized-keys
             ;;            `(("dyens" ,(local-file "../files/id_ed25519.pub"))))))
-
-            (set-xorg-configuration
-             (xorg-configuration (keyboard-layout keyboard-layout))))
+            )
 
            ;; Дефолтный список сервисов, к которому мы добавляемся.
+           ;;
+           ;; delete gdm-service-type: display manager не используем.
+           ;; Графика поднимается из home через startx, поэтому здесь же
+           ;; нет и set-xorg-configuration — при startx конфигурация
+           ;; Xorg задаётся в home-startx-command-service-type, иначе
+           ;; получились бы две конкурирующие настройки.
+           ;;
            ;; guix-daemon переопределяем, чтобы ходить через зеркало Яндекса.
            ;; ci.guix.gnu.org намеренно НЕ в списке: он недоступен из этой
            ;; сети и на каждом промахе кэша давал бы таймаут.
            ;; Зеркало кэширует bordeaux и отдаёт upstream-подписи,
            ;; так что авторизовывать дополнительные ключи не нужно.
            (modify-services %desktop-services
+             (delete gdm-service-type)
              (guix-service-type config =>
                (guix-configuration
                 (inherit config)
