@@ -37,6 +37,14 @@
                       (swap-device #f)            ; например (uuid "...")
                       (bootloader-type grub-bootloader)
                       (bootloader-targets (list "/dev/vda"))
+                      ;; Алист (имя-пользователя file-like) с ПУБЛИЧНЫМИ
+                      ;; ключами. Публичные ключи не секрет — их можно
+                      ;; держать в репозитории открыто:
+                      ;;   `(("dyens" ,(local-file "../files/keys/dyens.pub")))
+                      (ssh-authorized-keys '())
+                      ;; Выключать пароль ТОЛЬКО после того, как вход
+                      ;; по ключу проверен: иначе запрётесь.
+                      (ssh-password-auth? #t)
                       (extra-packages '())
                       (extra-services '())
                       (extra-file-systems '()))
@@ -60,7 +68,10 @@
     (packages (append extra-packages %base-packages))
 
     (services
-     (append (list (service openssh-service-type))
+     (append (list (service openssh-service-type
+                            (openssh-configuration
+                             (password-authentication? ssh-password-auth?)
+                             (authorized-keys ssh-authorized-keys))))
              extra-services
              ;; delete gdm-service-type: display manager не используем,
              ;; графика поднимается из home через startx. По той же

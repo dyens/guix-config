@@ -18,6 +18,13 @@
  #:bootloader-type grub-bootloader
  #:bootloader-targets (list "/dev/vda")
 
+ ;; Вход по ключу. Раскомментируйте, положив свой публичный ключ
+ ;; в files/keys/dyens.pub — см. files/keys/README.md.
+ ;; #:ssh-authorized-keys `(("dyens" ,(local-file "../files/keys/dyens.pub")))
+ ;;
+ ;; И только ПОСЛЕ того, как вход по ключу проверен:
+ ;; #:ssh-password-auth? #f
+
  #:extra-file-systems
  (list
   ;; Каталог с этим репозиторием, проброшенный с хоста.

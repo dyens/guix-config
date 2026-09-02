@@ -233,6 +233,20 @@ git -C ~/vms/guix-config commit -am "pin guix $(date +%F)"
 - публичные ключи (`*.pub`) для `authorized-keys` — это не секреты;
 - секреты, **зашифрованные** через `age` / `sops` / `git-crypt`.
 
+#### Вход по ssh-ключу
+
+Публичные ключи лежат в `files/keys/` и подключаются параметром
+`make-system`:
+
+```scheme
+ #:ssh-authorized-keys `(("dyens" ,(local-file "../files/keys/dyens.pub")))
+ #:ssh-password-auth? #f
+```
+
+Порядок важен: сначала добавить ключ и **проверить**, что вход работает,
+и только следующим reconfigure выключать пароль. Наоборот — потеря
+доступа по ssh. Подробности в `files/keys/README.md`.
+
 Чего делать нельзя:
 
 - приватные ключи, пароли, токены через `local-file`;
