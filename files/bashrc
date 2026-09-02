@@ -15,3 +15,16 @@ PS1='\[\033[1;32m\]\u@\h\[\033[0m\] \[\033[1;34m\]\w\[\033[0m\]\$ '
 
 # Быстрый доступ к конфигам, проброшенным с хоста
 export GUIX_CONFIG=/mnt/guix-config
+
+# Локальные настройки и СЕКРЕТЫ.
+#
+# Этот файл (files/bashrc) уезжает в /gnu/store, который читается любым
+# пользователем машины, и лежит в публичном git. Токенам и ключам здесь
+# не место.
+#
+# ~/.bashrc.local НЕ управляется Guix Home и не версионируется:
+# создаётся руками, chmod 600, живёт только на этой машине.
+#
+#   touch ~/.bashrc.local && chmod 600 ~/.bashrc.local
+#   echo 'export GITLAB_TOKEN=...' >> ~/.bashrc.local
+[ -f "$HOME/.bashrc.local" ] && . "$HOME/.bashrc.local"
