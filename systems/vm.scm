@@ -20,7 +20,7 @@
 
  ;; Вход по ключу. Раскомментируйте, положив свой публичный ключ
  ;; в files/keys/dyens.pub — см. files/keys/README.md.
- #:ssh-authorized-keys `(("dyens" ,(local-file "../files/keys/guix.pub")))
+ ;; #:ssh-authorized-keys `(("dyens" ,(local-file "../files/keys/dyens.pub")))
  ;;
  ;; И только ПОСЛЕ того, как вход по ключу проверен:
  ;; #:ssh-password-auth? #f
