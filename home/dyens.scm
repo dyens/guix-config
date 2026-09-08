@@ -84,41 +84,49 @@
    ;;
    ;; Копируется всё дерево целиком: файлы 600, каталоги 700.
    ;; Списка файлов вести не надо — положили в home/, сделали homerec.
+   ;;
+   ;; Используются только примитивы ядра Guile (opendir/readdir), без
+   ;; use-modules: внутри gexp он может оказаться не на верхнем уровне.
    (simple-service
     'install-secrets
     home-activation-service-type
-    #~(begin
-        (use-modules (ice-9 ftw))
-        (let* ((home (getenv "HOME"))
-               (candidates (list "/mnt/guix-secrets/home"
-                                 (string-append home "/secrets/home")))
-               (src (let loop ((c candidates))
-                      (cond ((null? c) #f)
-                            ((file-exists? (car c)) (car c))
-                            (else (loop (cdr c))))))
-               (copy-tree
-                (lambda (copy-tree from to)
-                  (for-each
-                   (lambda (name)
-                     (unless (member name '("." ".."))
-                       (let ((f (string-append from "/" name))
-                             (t (string-append to "/" name)))
-                         (if (eq? 'directory (stat:type (stat f)))
-                             (begin
-                               (unless (file-exists? t) (mkdir t))
-                               (chmod t #o700)
-                               (copy-tree copy-tree f t))
-                             (begin
-                               (when (file-exists? t) (delete-file t))
-                               (copy-file f t)
-                               (chmod t #o600))))))
-                   (scandir from)))))
-          (if src
-              (begin
-                (copy-tree copy-tree src home)
-                (display "секреты разложены из ") (display src) (newline))
-              (begin
-                (display "секреты не найдены, пропускаю") (newline))))))
+    #~(let* ((home (getenv "HOME"))
+             (candidates (list "/mnt/guix-secrets/home"
+                               (string-append home "/secrets/home")))
+             (src (let pick ((c candidates))
+                    (cond ((null? c) #f)
+                          ((file-exists? (car c)) (car c))
+                          (else (pick (cdr c))))))
+             (walk
+              (lambda (walk from to)
+                (let ((port (opendir from)))
+                  (let next ()
+                    (let ((name (readdir port)))
+                      (if (eof-object? name)
+                          (closedir port)
+                          (begin
+                            (unless (member name (list "." ".."))
+                              (let ((f (string-append from "/" name))
+                                    (t (string-append to "/" name)))
+                                (if (eq? (quote directory) (stat:type (stat f)))
+                                    (begin
+                                      (unless (file-exists? t) (mkdir t))
+                                      (chmod t #o700)
+                                      (walk walk f t))
+                                    (begin
+                                      (when (file-exists? t) (delete-file t))
+                                      (copy-file f t)
+                                      (chmod t #o600)))))
+                            (next)))))))))
+        (if src
+            (begin
+              (walk walk src home)
+              (display "секреты разложены из ")
+              (display src)
+              (newline))
+            (begin
+              (display "секреты не найдены, пропускаю")
+              (newline)))))
 
    ;; ~/.xinitrc — что запускать после startx.
    (simple-service 'xinitrc
