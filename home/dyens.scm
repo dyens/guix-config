@@ -70,6 +70,56 @@
                         ("homerec" . "guix home reconfigure /mnt/guix-config/home/dyens.scm")))
              (bashrc (list (local-file "../files/bashrc" "bashrc")))))
 
+   ;; Секреты: раскладываются по $HOME при каждом `guix home reconfigure`.
+   ;;
+   ;; Файлы читаются по обычному пути на диске, а НЕ через local-file —
+   ;; поэтому их содержимое в /gnu/store не попадает. В сторе оказывается
+   ;; только сам скрипт. Это принципиально: стор читается любым
+   ;; пользователем машины.
+   ;;
+   ;; Источник — первый существующий из:
+   ;;   /mnt/guix-secrets/home  (проброшено с хоста по 9p, dev-VM)
+   ;;   ~/secrets/home          (клон приватного репозитория)
+   ;; Нет ни одного — шаг молча пропускается.
+   ;;
+   ;; Копируется всё дерево целиком: файлы 600, каталоги 700.
+   ;; Списка файлов вести не надо — положили в home/, сделали homerec.
+   (simple-service
+    'install-secrets
+    home-activation-service-type
+    #~(begin
+        (use-modules (ice-9 ftw))
+        (let* ((home (getenv "HOME"))
+               (candidates (list "/mnt/guix-secrets/home"
+                                 (string-append home "/secrets/home")))
+               (src (let loop ((c candidates))
+                      (cond ((null? c) #f)
+                            ((file-exists? (car c)) (car c))
+                            (else (loop (cdr c))))))
+               (copy-tree
+                (lambda (copy-tree from to)
+                  (for-each
+                   (lambda (name)
+                     (unless (member name '("." ".."))
+                       (let ((f (string-append from "/" name))
+                             (t (string-append to "/" name)))
+                         (if (eq? 'directory (stat:type (stat f)))
+                             (begin
+                               (unless (file-exists? t) (mkdir t))
+                               (chmod t #o700)
+                               (copy-tree copy-tree f t))
+                             (begin
+                               (when (file-exists? t) (delete-file t))
+                               (copy-file f t)
+                               (chmod t #o600))))))
+                   (scandir from)))))
+          (if src
+              (begin
+                (copy-tree copy-tree src home)
+                (display "секреты разложены из ") (display src) (newline))
+              (begin
+                (display "секреты не найдены, пропускаю") (newline))))))
+
    ;; ~/.xinitrc — что запускать после startx.
    (simple-service 'xinitrc
                    home-files-service-type

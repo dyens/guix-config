@@ -42,4 +42,15 @@
     (options "trans=virtio,version=9p2000.L,msize=104857600")
     (mount-may-fail? #t)
     (check? #f)
+    (create-mount-point? #t))
+
+  ;; Секреты, отдельным приватным репозиторием с хоста.
+  ;; Раскладываются по $HOME скриптом активации в home/dyens.scm.
+  (file-system
+    (mount-point "/mnt/guix-secrets")
+    (device "guixsec")
+    (type "9p")
+    (options "trans=virtio,version=9p2000.L,msize=104857600")
+    (mount-may-fail? #t)
+    (check? #f)
     (create-mount-point? #t))))
