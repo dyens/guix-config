@@ -37,9 +37,10 @@
          ;; в систему ставить не нужно.
          "font-dejavu"
          "font-google-noto"
-         ;; Расшифровка секретов из guix-secrets (age-совместимый).
-         ;; Нужен и скрипту активации ниже, и вручную — bin/secret-*.
-         "rage"
+         ;; Расшифровка секретов из guix-secrets.
+         ;; ВНИМАНИЕ: пакет называется "age" (gnu/packages/golang-crypto.scm).
+         ;; Пакет "rage" в Guix — это медиаплеер на EFL, не шифрование.
+         "age"
          ;; Утилиты
          "git"
          "ripgrep"
@@ -103,7 +104,7 @@
     'install-secrets
     home-activation-service-type
     #~(let* ((home (getenv "HOME"))
-             (rage #$(file-append (specification->package "rage") "/bin/rage"))
+             (age #$(file-append (specification->package "age") "/bin/age"))
              (first-existing
               (lambda (paths)
                 (let pick ((p paths))
@@ -141,7 +142,7 @@
                                              (t (string-append
                                                  to "/" (substring name 0 (- n 4)))))
                                         (when (file-exists? t) (delete-file t))
-                                        (if (zero? (system* rage "-d" "-i" key
+                                        (if (zero? (system* age "-d" "-i" key
                                                             "-o" t f))
                                             (chmod t #o600)
                                             (begin

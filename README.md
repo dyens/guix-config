@@ -276,8 +276,12 @@ cat ~/.ssh/id_ed25519.pub > files/keys/dyens-$(hostname).pub
 #### Токены и прочее: репозиторий guix-secrets
 
 Отдельный репозиторий — **публичный, но всё содержимое зашифровано**
-через [`rage`](https://github.com/str4d/rage), age-совместимую реализацию
-(самого `age` в Guix нет).
+через [`age`](https://github.com/FiloSottile/age) (пакет `age`
+в `gnu/packages/golang-crypto.scm`).
+
+Осторожно с именами: пакет `rage` в Guix — это медиаплеер на EFL,
+а не шифрование. Одноимённая age-реализация на Rust существует,
+но в Guix под этим именем лежит другое.
 
 Сервис `install-secrets` в `home/dyens.scm` при каждом
 `guix home reconfigure`:
