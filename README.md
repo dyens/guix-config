@@ -283,8 +283,9 @@ cat ~/.ssh/id_ed25519.pub > files/keys/dyens-$(hostname).pub
 а не шифрование. Одноимённая age-реализация на Rust существует,
 но в Guix под этим именем лежит другое.
 
-Сервис `install-secrets` в `home/dyens.scm` при каждом
-`guix home reconfigure`:
+Сервис `install-secrets` живёт в отдельном модуле `home/secrets.scm`,
+`home/dyens.scm` только вызывает `(install-secrets-service)`. При каждом
+`guix home reconfigure` он:
 
 1. ищет источник — `/mnt/guix-secrets/home` (9p с хоста, локальная VM)
    или `~/secrets/home` (клон репозитория);

@@ -15,6 +15,8 @@
 ;; в files/, а потом reconfigure. Это и есть та дисциплина, которая
 ;; даёт воспроизводимость.
 
+(add-to-load-path (dirname (current-filename)))
+
 (use-modules (gnu home)
              (gnu home services)
              (gnu home services shells)
@@ -22,7 +24,8 @@
              (gnu packages)
              (gnu services xorg)           ; xorg-configuration
              (gnu system keyboard)         ; keyboard-layout
-             (guix gexp))
+             (guix gexp)
+             (secrets))                    ; install-secrets-service, см. secrets.scm
 
 (home-environment
 
@@ -74,93 +77,9 @@
                         ("homerec" . "guix home reconfigure /mnt/guix-config/home/dyens.scm")))
              (bashrc (list (local-file "../files/bashrc" "bashrc")))))
 
-   ;; Секреты: расшифровываются и раскладываются по $HOME при каждом
-   ;; `guix home reconfigure`.
-   ;;
-   ;; Источник — первый существующий из:
-   ;;   /mnt/guix-secrets/home  (проброшено с хоста по 9p, локальная VM)
-   ;;   ~/secrets/home          (клон публичного репозитория guix-secrets)
-   ;;
-   ;; Ключ расшифровки — первый существующий из:
-   ;;   ~/.age-key              (общий ключ, копируется на машину руками)
-   ;;   ~/.ssh/id_ed25519       (если машина в .age-recipients)
-   ;;
-   ;; Парольной фразы у ключа нет — расшифровка идёт молча, без интерактива.
-   ;; Нет источника или нет ключа — шаг пропускается, машина
-   ;; разворачивается нормально.
-   ;;
-   ;; Обрабатываются ТОЛЬКО файлы *.age: суффикс отбрасывается, результат
-   ;; кладётся по тому же относительному пути. Файлы без суффикса
-   ;; игнорируются — так плейнтекст из публичного репозитория не попадёт
-   ;; в $HOME даже случайно. Файлы 600, каталоги 700.
-   ;;
-   ;; Содержимое секретов в /gnu/store НЕ попадает: файлы читаются
-   ;; по обычному пути во время активации, а не через local-file.
-   ;; В сторе оказывается только сам скрипт.
-   ;;
-   ;; Используются только примитивы ядра Guile (opendir/readdir), без
-   ;; use-modules: внутри gexp он может оказаться не на верхнем уровне.
-   (simple-service
-    'install-secrets
-    home-activation-service-type
-    #~(let* ((home (getenv "HOME"))
-             (age #$(file-append (specification->package "age") "/bin/age"))
-             (first-existing
-              (lambda (paths)
-                (let pick ((p paths))
-                  (cond ((null? p) #f)
-                        ((file-exists? (car p)) (car p))
-                        (else (pick (cdr p)))))))
-             (src (first-existing
-                   (list "/mnt/guix-secrets/home"
-                         (string-append home "/secrets/home"))))
-             (key (first-existing
-                   (list (string-append home "/.age-key")
-                         (string-append home "/.ssh/id_ed25519"))))
-             (age-file?
-              (lambda (name)
-                (let ((n (string-length name)))
-                  (and (> n 4)
-                       (string=? ".age" (substring name (- n 4) n))))))
-             (walk
-              (lambda (walk from to)
-                (let ((port (opendir from)))
-                  (let next ()
-                    (let ((name (readdir port)))
-                      (if (eof-object? name)
-                          (closedir port)
-                          (begin
-                            (unless (member name (list "." ".."))
-                              (let ((f (string-append from "/" name)))
-                                (if (eq? (quote directory) (stat:type (stat f)))
-                                    (let ((t (string-append to "/" name)))
-                                      (unless (file-exists? t) (mkdir t))
-                                      (chmod t #o700)
-                                      (walk walk f t))
-                                    (when (age-file? name)
-                                      (let* ((n (string-length name))
-                                             (t (string-append
-                                                 to "/" (substring name 0 (- n 4)))))
-                                        (when (file-exists? t) (delete-file t))
-                                        (if (zero? (system* age "-d" "-i" key
-                                                            "-o" t f))
-                                            (chmod t #o600)
-                                            (begin
-                                              (display "не расшифровался: ")
-                                              (display f)
-                                              (newline))))))))
-                            (next)))))))))
-        (cond ((not src)
-               (display "секреты: источник не найден, пропускаю")
-               (newline))
-              ((not key)
-               (display "секреты: нет ключа (~/.age-key), пропускаю")
-               (newline))
-              (else
-               (walk walk src home)
-               (display "секреты разложены из ")
-               (display src)
-               (newline)))))
+   ;; Секреты из репозитория guix-secrets: расшифровка и раскладка
+   ;; по $HOME при каждом reconfigure. Подробности — в home/secrets.scm.
+   (install-secrets-service)
 
    ;; ~/.xinitrc — что запускать после startx.
    (simple-service 'xinitrc
