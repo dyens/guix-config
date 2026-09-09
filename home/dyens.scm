@@ -56,7 +56,8 @@
          "htop"
          "curl"
          "unzip"
-         "vim"))))
+         "vim"
+         "tmux"))))
 
  (services
   (list
@@ -93,5 +94,7 @@
 
    (simple-service 'dotfiles
                    home-xdg-configuration-files-service-type
-                   `(("i3/config" ,(local-file "../files/i3/config"))))
+                   ;; Пути относительно ~/.config, без префикса .config/
+                   `(("i3/config"      ,(local-file "../files/i3/config"))
+                     ("tmux/tmux.conf" ,(local-file "../files/tmux.conf"))))
    )))
