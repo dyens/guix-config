@@ -14,7 +14,11 @@ USER_IN_VM="${GUIX_VM_USER:-dyens}"
 PIDFILE="$VMS/.guix-vm.pid"
 
 qemu_args=(
-  -enable-kvm -m "$MEM" -smp "$CPUS"
+  # -cpu host ОБЯЗАТЕЛЕН. Без него QEMU поднимает модель qemu64,
+  # которая маскирует AVX/AVX2 даже под KVM. Бинарники, собранные
+  # Bun'ом (например Claude Code), на таком CPU уходят в бесконечный
+  # цикл вместо честного SIGILL. Заодно это заметно быстрее.
+  -enable-kvm -cpu host -m "$MEM" -smp "$CPUS"
   -nic "user,model=virtio-net-pci,hostfwd=tcp::${PORT}-:22"
   -drive "file=$DISK,if=virtio"
   # security_model=none => гостевые uid/gid совпадают с хостовыми,
