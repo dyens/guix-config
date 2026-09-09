@@ -5,10 +5,10 @@
 ;;; загрузчик, hostname) передаётся параметрами из systems/<host>.scm.
 ;;;
 ;;; Модуль подключается так (см. systems/vm.scm):
-;;;     (add-to-load-path (dirname (current-filename)))
-;;;     (use-modules (gnu) (base))
+;;;     (add-to-load-path (dirname (dirname (current-filename))))
+;;;     (use-modules (gnu) (systems base))
 
-(define-module (base)
+(define-module (systems base)
   #:use-module (gnu)
   #:use-module (gnu services desktop)   ; %desktop-services
   #:use-module (gnu services xorg)      ; gdm-service-type

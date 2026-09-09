@@ -115,11 +115,34 @@ startx
 | `systems/vm.scm` | dev-VM под QEMU | `sudo -i guix system reconfigure` |
 | `systems/laptop.scm` | заготовка для физической машины (UEFI) | `sudo -i guix system reconfigure` |
 | `home/dyens.scm` | dotfiles, пакеты, i3, startx | `guix home reconfigure` |
+| `home/secrets.scm` | расшифровка и раскладка секретов | — (подключается модулем) |
+| `packages/claude-code.scm` | проприетарный бинарник, переупакованный под Guix | — (подключается модулем) |
 | `files/` | сырые dotfiles, подключаемые через `local-file` | — |
 | `run-vm.sh` | запуск qemu с ssh + 9p (выполняется на ХОСТЕ) | — |
 
 Три слоя — Guix, система, home — независимы, и без первого остальные два
 невоспроизводимы.
+
+### Модули
+
+Файлы верхнего уровня (`systems/vm.scm`, `home/dyens.scm`) — точки входа,
+всё остальное подключается модулями. Путь загрузки — корень репозитория,
+имена модулей повторяют структуру каталогов:
+
+```scheme
+(add-to-load-path (dirname (dirname (current-filename))))
+(use-modules (systems base) (home secrets) (packages claude-code))
+```
+
+Иерархические имена, а не короткие `(base)`/`(secrets)`, — чтобы
+не столкнуться с модулями самого Guix.
+
+Если `add-to-load-path` не сработает (Guile не смог определить путь
+исходника), укажите корень репозитория флагом:
+
+```sh
+sudo -i guix system reconfigure -L ~/guix-config ~/guix-config/systems/vm.scm
+```
 
 ### Как устроен `systems/`
 
@@ -128,9 +151,6 @@ startx
 Файлы машин передают в неё только машинно-зависимое:
 
 ```scheme
-(add-to-load-path (dirname (current-filename)))
-(use-modules (gnu) (base))
-
 (make-system
  #:host-name "dyens"
  #:root-device (uuid "981499e3-..." 'ext4)
@@ -140,12 +160,36 @@ startx
 Новая машина — файл на полтора десятка строк. Общие изменения правятся
 в `base.scm` и разъезжаются по всем машинам сразу.
 
-Если `add-to-load-path` не сработает (Guile не смог определить путь
-исходника), укажите каталог модуля флагом:
+### Обновить Claude Code
+
+Claude Code — проприетарный бинарник, собранный под FHS: он ищет
+загрузчик по `/lib64/ld-linux-x86-64.so.2`, которого в Guix нет.
+`packages/claude-code.scm` скачивает его, правит `patchelf`'ом путь
+к загрузчику на glibc из стора и кладёт в профиль. Ни симлинков
+в системе, ни FHS-контейнера не нужно.
+
+Обратная сторона: стор неизменяемый, поэтому обновлять себя Claude Code
+не может. Поэтому в `files/bashrc` выставлен `DISABLE_UPDATES=1`,
+а версия бампается вручную:
 
 ```sh
-sudo -i guix system reconfigure -L ~/guix-config/systems ~/guix-config/systems/vm.scm
+# 1. узнать версию и контрольную сумму из подписанного манифеста
+V=2.1.300
+curl -fsSL https://downloads.claude.ai/claude-code-releases/$V/manifest.json \
+  | grep -A3 '"linux-x64"'
+
+# 2. перевести sha256 из hex в формат Guix
+guix hash --hash=sha256 --format=nix-base32 <файл>
 ```
+
+Проще всего не считать вручную: поставьте в `packages/claude-code.scm`
+новую `version` и любой невалидный хеш, запустите `guix home build` —
+Guix скачает файл и напечатает ожидаемый хеш в тексте ошибки. Впишите
+его и повторите.
+
+Версия пиннится хешем, поэтому `guix time-machine` возвращает именно ту
+версию Claude Code, что была на момент коммита, — в отличие от обычной
+установки, которая обновляет себя в фоне.
 
 ---
 

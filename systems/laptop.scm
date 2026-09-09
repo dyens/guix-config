@@ -20,8 +20,8 @@
 ;;;     guix time-machine -C channels.scm -- \
 ;;;          system reconfigure systems/laptop.scm
 
-(add-to-load-path (dirname (current-filename)))
-(use-modules (gnu) (base))
+(add-to-load-path (dirname (dirname (current-filename))))
+(use-modules (gnu) (systems base))
 
 (make-system
  #:host-name "laptop"

@@ -15,7 +15,7 @@
 ;; в files/, а потом reconfigure. Это и есть та дисциплина, которая
 ;; даёт воспроизводимость.
 
-(add-to-load-path (dirname (current-filename)))
+(add-to-load-path (dirname (dirname (current-filename))))
 
 (use-modules (gnu home)
              (gnu home services)
@@ -25,12 +25,17 @@
              (gnu services xorg)           ; xorg-configuration
              (gnu system keyboard)         ; keyboard-layout
              (guix gexp)
-             (secrets))                    ; install-secrets-service, см. secrets.scm
+             (home secrets)                ; install-secrets-service
+             (packages claude-code))       ; см. packages/claude-code.scm
 
 (home-environment
 
  (packages
-  (map specification->package
+  (cons
+   ;; Проприетарный бинарник, переупакованный под Guix.
+   ;; Версия зафиксирована хешем — см. packages/claude-code.scm.
+   claude-code
+   (map specification->package
        '(;; Графическое окружение
          "i3-wm"
          "i3status"
@@ -51,7 +56,7 @@
          "htop"
          "curl"
          "unzip"
-         "vim")))
+         "vim"))))
 
  (services
   (list

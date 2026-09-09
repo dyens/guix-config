@@ -7,8 +7,8 @@
 ;;; Собрать готовый образ, не трогая текущую систему:
 ;;;     guix system image -t qcow2 --image-size=20G systems/vm.scm
 
-(add-to-load-path (dirname (current-filename)))
-(use-modules (gnu) (base))
+(add-to-load-path (dirname (dirname (current-filename))))
+(use-modules (gnu) (systems base))
 
 (make-system
  #:host-name "dyens"

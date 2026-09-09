@@ -1,8 +1,8 @@
 ;;; Раскладка секретов из репозитория guix-secrets.
 ;;;
 ;;; Подключается из home/dyens.scm:
-;;;     (add-to-load-path (dirname (current-filename)))
-;;;     (use-modules (secrets))
+;;;     (add-to-load-path (dirname (dirname (current-filename))))
+;;;     (use-modules (home secrets))
 ;;;     ... (install-secrets-service) ...
 ;;;
 ;;; Как это работает. При каждом `guix home reconfigure` запускается
@@ -18,7 +18,7 @@
 ;;; Файлы без суффикса .age игнорируются — так плейнтекст из публичного
 ;;; репозитория не попадёт в $HOME даже случайно.
 
-(define-module (secrets)
+(define-module (home secrets)
   #:use-module (gnu home services)   ; home-activation-service-type
   #:use-module (gnu packages)        ; specification->package
   #:use-module (gnu services)        ; simple-service
