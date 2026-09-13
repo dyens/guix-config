@@ -25,8 +25,23 @@
              (gnu services xorg)           ; xorg-configuration
              (gnu system keyboard)         ; keyboard-layout
              (guix gexp)
-             (home secrets)                ; install-secrets-service
+             (sops secrets)                ; sops-secret      — канал sops-guix
+             (sops home services sops)     ; home-sops-secrets-service-type
              (packages claude-code))       ; см. packages/claude-code.scm
+
+;; Зашифрованные секреты. В стор уезжает только шифротекст, открытый
+;; текст появляется в tmpfs /run/user/$UID/secrets при старте home-shepherd.
+;; Редактировать: guix shell sops -- sops files/secrets/home.yaml
+(define home.yaml
+  (local-file "../files/secrets/home.yaml" "home.yaml"))
+
+(define (home-secret key target)
+  "Секрет KEY из home.yaml, симлинком в ~/TARGET."
+  (sops-secret
+   (key (list key))
+   (file home.yaml)
+   (permissions #o400)
+   (path (string-append (getenv "HOME") "/" target))))
 
 (home-environment
 
@@ -45,10 +60,6 @@
          ;; в систему ставить не нужно.
          "font-dejavu"
          "font-google-noto"
-         ;; Расшифровка секретов из guix-secrets.
-         ;; ВНИМАНИЕ: пакет называется "age" (gnu/packages/golang-crypto.scm).
-         ;; Пакет "rage" в Guix — это медиаплеер на EFL, не шифрование.
-         "age"
          ;; Утилиты
          "git"
          "ripgrep"
@@ -80,12 +91,20 @@
                         ("gd"  . "git diff")
                         ;; reconfigure системы и home из проброшенного репозитория
                         ("sysrec"  . "sudo -i guix system reconfigure /mnt/guix-config/systems/vm.scm")
-                        ("homerec" . "guix home reconfigure /mnt/guix-config/home/dyens.scm")))
+                        ("homerec" . "guix home reconfigure /mnt/guix-config/home/dyens.scm")
+                        ;; sops ищет age-ключ в ~/.config/sops/age/keys.txt,
+                        ;; у нас он в ~/.age-key. Сам sops в профиль кладёт
+                        ;; home-sops-secrets-service-type.
+                        ("sops"    . "SOPS_AGE_KEY_FILE=~/.age-key sops")))
              (bashrc (list (local-file "../files/bashrc" "bashrc")))))
 
-   ;; Секреты из репозитория guix-secrets: расшифровка и раскладка
-   ;; по $HOME при каждом reconfigure. Подробности — в home/secrets.scm.
-   (install-secrets-service)
+   ;; Секреты из files/secrets/home.yaml. Сам sops сервис кладёт в профиль.
+   ;; Ключ — ~/.age-key; если его нет, sops пробует ~/.ssh/id_ed25519.
+   (service home-sops-secrets-service-type
+            (home-sops-service-configuration
+             (age-key-file #~(string-append (getenv "HOME") "/.age-key"))
+             (secrets
+              (list (home-secret "bashrc.local" ".bashrc.local")))))
 
    ;; ~/.xinitrc — что запускать после startx.
    (simple-service 'xinitrc

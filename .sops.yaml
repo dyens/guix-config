@@ -1,0 +1,19 @@
+# Правила шифрования для sops. НЕ секрет: здесь только публичные ключи.
+#
+# sops читает этот файл при создании и перешифровке (`sops updatekeys`),
+# для расшифровки он не нужен — получатели записаны в сам файл секретов.
+#
+# Получатели — age-ключи. Два вида, можно вперемешку:
+#   age1...           — общий ключ, приватная половина в ~/.age-key
+#   ssh-ed25519 AAAA  — публичный ssh-ключ машины (files/keys/*.pub),
+#                       расшифровывает своим ~/.ssh/id_ed25519
+# После правки списка: sops updatekeys files/secrets/home.yaml
+
+keys:
+  - &dyens age13dpfp5huwmqjk78n5dprme36pyaaevftzlkffluv33jgy585maks84hw30
+
+creation_rules:
+  - path_regex: files/secrets/.*\.yaml$
+    key_groups:
+      - age:
+          - *dyens

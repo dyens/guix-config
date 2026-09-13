@@ -26,12 +26,10 @@ export DISABLE_UPDATES=1
 # Этот файл (files/bashrc) уезжает в /gnu/store, который читается любым
 # пользователем машины, и лежит в git. Токенам и ключам здесь не место.
 #
-# Сам ~/.bashrc.local приезжает на машину из репозитория guix-secrets
-# в зашифрованном виде и раскладывается при guix home reconfigure.
+# ~/.bashrc.local — симлинк в tmpfs /run/user/$UID/secrets, его создаёт
+# home-sops-secrets из files/secrets/home.yaml при старте home-shepherd.
+# Самый первый шелл после загрузки может успеть раньше расшифровки:
+# симлинк ещё висячий, -r ложно, файл просто пропускается.
 #
-# ~/.bashrc.local НЕ управляется Guix Home и не версионируется:
-# создаётся руками, chmod 600, живёт только на этой машине.
-#
-#   touch ~/.bashrc.local && chmod 600 ~/.bashrc.local
-#   echo 'export GITLAB_TOKEN=...' >> ~/.bashrc.local
-[ -f "$HOME/.bashrc.local" ] && . "$HOME/.bashrc.local"
+#   guix shell sops -- sops files/secrets/home.yaml    # добавить токен
+[ -r "$HOME/.bashrc.local" ] && . "$HOME/.bashrc.local"

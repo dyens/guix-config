@@ -23,20 +23,18 @@
 ```sh
 guix install git                     # если git ещё нет
 git clone git@github.com:dyens/guix-config.git ~/guix-config
-git clone https://github.com/dyens/guix-secrets.git ~/secrets
 cd ~/guix-config
 ```
 
-`guix-secrets` публичный, поэтому клонируется по https без всякой
-аутентификации. Чтобы секреты из него расшифровались, машине нужен ключ:
-либо скопируйте `~/.age-key` с уже работающей машины, либо добавьте
-публичный ssh-ключ этой машины в `.age-recipients` и перешифруйте —
-см. README репозитория. Без ключа установка проходит нормально, просто
-без секретов.
+Секреты лежат в этом же репозитории зашифрованными (`files/secrets/`).
+Чтобы они расшифровались, машине нужен ключ: либо скопируйте `~/.age-key`
+с уже работающей машины, либо добавьте публичный ssh-ключ этой машины
+в `.sops.yaml` и выполните `sops updatekeys` — см. раздел «Секреты».
+Без ключа установка проходит нормально, просто без секретов.
 
 ### 2. Взять пиннутую версию Guix
 
-`channels.scm` фиксирует точный коммит Guix. Это то, что делает установку
+`channels.scm` фиксирует точный коммит Guix и канала `sops-guix`. Это то, что делает установку
 воспроизводимой: тот же конфиг на другом коммите даст другие версии
 пакетов.
 
@@ -110,14 +108,15 @@ startx
 
 | Путь | Что описывает | Команда применения |
 |---|---|---|
-| `channels.scm` | версию самого Guix (пин коммита) | `guix pull -C channels.scm` |
+| `channels.scm` | версию Guix и канала sops-guix (пины коммитов) | `guix pull -C channels.scm` |
 | `systems/base.scm` | общая часть всех машин | — (подключается модулем) |
 | `systems/vm.scm` | dev-VM под QEMU | `sudo -i guix system reconfigure` |
 | `systems/laptop.scm` | заготовка для физической машины (UEFI) | `sudo -i guix system reconfigure` |
 | `home/dyens.scm` | dotfiles, пакеты, i3, startx | `guix home reconfigure` |
-| `home/secrets.scm` | расшифровка и раскладка секретов | — (подключается модулем) |
 | `packages/claude-code.scm` | проприетарный бинарник, переупакованный под Guix | — (подключается модулем) |
 | `files/` | сырые dotfiles, подключаемые через `local-file` | — |
+| `files/secrets/*.yaml` | секреты, зашифрованные sops | `sops files/secrets/home.yaml` |
+| `.sops.yaml` | получатели: кто может расшифровать | `sops updatekeys` |
 | `run-vm.sh` | запуск qemu с ssh + 9p (выполняется на ХОСТЕ) | — |
 
 Три слоя — Guix, система, home — независимы, и без первого остальные два
@@ -131,10 +130,10 @@ startx
 
 ```scheme
 (add-to-load-path (dirname (dirname (current-filename))))
-(use-modules (systems base) (home secrets) (packages claude-code))
+(use-modules (systems base) (packages claude-code))
 ```
 
-Иерархические имена, а не короткие `(base)`/`(secrets)`, — чтобы
+Иерархические имена, а не короткие `(base)`/`(claude-code)`, — чтобы
 не столкнуться с модулями самого Guix.
 
 Если `add-to-load-path` не сработает (Guile не смог определить путь
@@ -215,6 +214,7 @@ Guix скачает файл и напечатает ожидаемый хеш �
 ```sh
 sysrec      # sudo -i guix system reconfigure /mnt/guix-config/systems/vm.scm
 homerec     # guix home reconfigure /mnt/guix-config/home/dyens.scm
+sops        # SOPS_AGE_KEY_FILE=~/.age-key sops — см. «Секреты»
 ```
 
 ### Обновить пин
@@ -286,7 +286,7 @@ git -C ~/vms/guix-config commit -am "pin guix $(date +%F)"
 | Что | Где лежит | Как попадает на машину |
 |---|---|---|
 | Публичные ssh-ключи | `files/keys/*.pub` | `local-file`, открыто |
-| Токены, конфиги доступа | `guix-secrets`, зашифровано | расшифровка при `guix home reconfigure` |
+| Токены, конфиги доступа | `files/secrets/*.yaml`, зашифровано sops | расшифровка в tmpfs при старте home-shepherd |
 | Приватные ssh-ключи | нигде | генерируются на месте, не переносятся |
 
 #### Приватные ssh-ключи: не переносить
@@ -317,37 +317,97 @@ cat ~/.ssh/id_ed25519.pub > files/keys/dyens-$(hostname).pub
 и только следующим reconfigure выключать пароль. Наоборот — потеря
 доступа по ssh.
 
-#### Токены и прочее: репозиторий guix-secrets
+#### Токены и прочее: sops-guix
 
-Отдельный репозиторий — **публичный, но всё содержимое зашифровано**
-через [`age`](https://github.com/FiloSottile/age) (пакет `age`
-в `gnu/packages/golang-crypto.scm`).
+Секреты лежат в этом же репозитории, в `files/secrets/*.yaml`,
+зашифрованные [sops](https://getsops.io) на age-ключи. Расшифровывает их
+`home-sops-secrets-service-type` из канала
+[sops-guix](https://github.com/fishinthecalculator/sops-guix)
+(пин — в `channels.scm`).
 
-Осторожно с именами: пакет `rage` в Guix — это медиаплеер на EFL,
-а не шифрование. Одноимённая age-реализация на Rust существует,
-но в Guix под этим именем лежит другое.
+Как это работает:
 
-Сервис `install-secrets` живёт в отдельном модуле `home/secrets.scm`,
-`home/dyens.scm` только вызывает `(install-secrets-service)`. При каждом
-`guix home reconfigure` он:
+1. `home.yaml` подключается через `local-file` и уезжает в стор —
+   **только шифротекст**, так что это не хуже публичного репозитория;
+2. при старте home-shepherd (первый логин после загрузки) на каждый
+   `sops-secret` запускается одноразовый сервис: `sops -d --extract`
+   пишет значение в tmpfs `/run/user/$UID/secrets/<ключ>` с правами 400;
+3. поле `path` создаёт симлинк на него, например
+   `~/.bashrc.local -> /run/user/1000/secrets/bashrc.local`.
 
-1. ищет источник — `/mnt/guix-secrets/home` (9p с хоста, локальная VM)
-   или `~/secrets/home` (клон репозитория);
-2. ищет ключ — `~/.age-key`, затем `~/.ssh/id_ed25519`;
-3. расшифровывает все `*.age` в `$HOME` по тем же относительным путям,
-   права 600 на файлы и 700 на каталоги.
+Открытый текст на диск не пишется. Версия секретов едет вместе
+с коммитом конфига: `guix home roll-back` и `time-machine` берут ровно те
+секреты, что были в этом поколении.
 
-Ключевое: файлы читаются по обычному пути **во время активации**, а не
-через `local-file`. Содержимое секретов в стор не попадает — туда уезжает
-только сам скрипт.
+Ключ ищется в `~/.age-key` (задано в `home/dyens.scm`), затем в
+`~/.ssh/id_ed25519` — если публичный ssh-ключ машины внесён в `.sops.yaml`.
+Нет ключа — сервис секрета падает с сообщением в логе home-shepherd,
+остальное окружение работает.
 
-Файлы без суффикса `.age` игнорируются, так что плейнтекст из публичного
-репозитория не окажется в `$HOME` даже случайно. Нет источника или нет
-ключа — шаг пропускается с сообщением, машина разворачивается нормально.
+Целый файл хранится как многострочное значение под своим ключом yaml,
+а не как `--input-type binary`: имя файла в `/run/user/$UID/secrets`
+берётся из ключа, и у всех binary-секретов оно было бы одинаковым — `data`.
 
-Расшифровка идёт без ввода пароля: у ключа нет парольной фразы. Работа
-с самими секретами (добавить, посмотреть, перешифровать) описана в README
-репозитория `guix-secrets`.
+Команды выполняются из корня репозитория (`/mnt/guix-config` в VM).
+В окружении Guix Home алиас `sops` уже есть (`home/dyens.scm`): он
+подставляет `SOPS_AGE_KEY_FILE=~/.age-key`, а сам `sops` кладёт в профиль
+сервис секретов. На хосте без Guix Home заведите такой же руками:
+
+```sh
+alias sops='SOPS_AGE_KEY_FILE=~/.age-key guix shell sops -- sops'
+
+# посмотреть или отредактировать: открывает расшифрованным в $EDITOR,
+# при сохранении шифрует обратно
+sops files/secrets/home.yaml
+
+# добавить машину: вписать её age- или ssh-ed25519-ключ в .sops.yaml, затем
+sops updatekeys files/secrets/home.yaml
+
+# новый ключ-файл
+guix shell age -- age-keygen -o ~/.age-key
+```
+
+Новый секрет — ключ в `home.yaml` плюс строка в `home/dyens.scm`:
+
+```scheme
+(list (home-secret "bashrc.local" ".bashrc.local")
+      (home-secret "ssh-config"   ".ssh/config"))
+```
+
+Первый раз на новой VM:
+
+```sh
+# на хосте: ключ в VM (приватная половина, только по ssh)
+scp -P 10022 -o UserKnownHostsFile=~/vms/.known_hosts.guixvm \
+    ~/.age-key dyens@127.0.0.1:~/.age-key
+./run-vm.sh ssh chmod 600 ~/.age-key
+
+# в VM: без канала sops-guix reconfigure не найдёт модуль (sops secrets)
+guix pull -C /mnt/guix-config/channels.scm && hash guix
+homerec
+
+# проверка
+herd status home-sops-secrets
+ls -l ~/.bashrc.local /run/user/$(id -u)/secrets/
+```
+
+Ключ — до `homerec`. Если сервис секрета всё же упал (ключ скопирован
+позже, сменили значение, а файл старый), перезапустите его:
+`herd restart home-sops-secret-<ключ>`, например
+`herd restart home-sops-secret-bashrc.local`. Переменные из
+`~/.bashrc.local` видны в новом шелле.
+
+Нюансы:
+
+- **Секреты появляются при логине, а не при `reconfigure`.** После
+  перезагрузки tmpfs пуст, пока home-shepherd не стартует. Самый первый
+  шелл может успеть раньше расшифровки — поэтому `files/bashrc` проверяет
+  `-r` и молча пропускает висячий симлинк.
+- **Если по пути `path` уже лежит обычный файл** (например `~/.bashrc.local`
+  от старой схемы с `guix-secrets`), симлинк не создастся. Удалите файл
+  руками один раз.
+- **Имена ключей yaml видны открытым текстом**, зашифрованы только значения.
+  Называйте ключи так, чтобы это не было проблемой в публичном репозитории.
 
 #### Чего делать нельзя
 
@@ -355,7 +415,7 @@ cat ~/.ssh/id_ed25519.pub > files/keys/dyens-$(hostname).pub
 - секреты в `files/bashrc` — он тоже уезжает в стор. Для переменных
   окружения держите `~/.bashrc.local`: он не управляется Guix Home,
   подключается последней строкой из `files/bashrc`, а на машину приезжает
-  из `guix-secrets` зашифрованным.
+  из `files/secrets/home.yaml` через sops.
 
 ### На чужом дистрибутиве (Fedora, Ubuntu)
 
@@ -447,5 +507,5 @@ GDM — тяжёлый GNOME-компонент, который тянет по�
   госте виснут в бесконечном цикле вместо честного `SIGILL`: `--version`
   работает, а TUI — нет. Проверка: `grep avx2 /proc/cpuinfo` в госте.
 - **Пакет `rage` в Guix — это медиаплеер на EFL**, а не age-шифрование.
-  Нужный пакет называется `age`. Проверять состав пакета, а не только
+  Нужный пакет называется `age` (понадобится для `age-keygen`). Проверять состав пакета, а не только
   наличие имени: `guix show <имя>`.

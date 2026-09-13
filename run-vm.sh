@@ -6,7 +6,6 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VMS="$(dirname "$REPO")"
 
 DISK="${GUIX_VM_DISK:-$VMS/guix.qcow2}"
-SECRETS="${GUIX_VM_SECRETS:-$VMS/guix-secrets}"
 PORT="${GUIX_VM_SSH_PORT:-10022}"
 MEM="${GUIX_VM_MEM:-4096}"
 CPUS="${GUIX_VM_CPUS:-4}"
@@ -25,12 +24,6 @@ qemu_args=(
   # поэтому из VM можно и читать, и писать в этот каталог.
   -virtfs "local,path=$REPO,mount_tag=guixcfg,security_model=none"
 )
-
-# Второй шар — секреты. Отдельный приватный репозиторий, поэтому
-# пробрасывается только если он есть: без него VM грузится нормально.
-if [[ -d "$SECRETS" ]]; then
-  qemu_args+=(-virtfs "local,path=$SECRETS,mount_tag=guixsec,security_model=none")
-fi
 
 case "${1:-start}" in
   start)
