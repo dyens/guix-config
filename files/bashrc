@@ -1,4 +1,4 @@
-# Подключается из home/dyens.scm через home-bash-service-type.
+# Подключается из home/base.scm через home-bash-service-type.
 # Правится ЗДЕСЬ, а не в ~/.bashrc — тот станет симлинком в /gnu/store
 # и будет read-only.
 
@@ -13,8 +13,8 @@ shopt -s histappend checkwinsize
 
 PS1='\[\033[1;32m\]\u@\h\[\033[0m\] \[\033[1;34m\]\w\[\033[0m\]\$ '
 
-# Быстрый доступ к конфигам, проброшенным с хоста
-export GUIX_CONFIG=/mnt/guix-config
+# $GUIX_CONFIG (путь к этому репозиторию) задаёт make-home, #:repo:
+# у каждой машины свой.
 
 # Claude Code стоит из стора и физически не может обновить сам себя.
 # Без этого он будет пытаться и ругаться при каждом запуске.

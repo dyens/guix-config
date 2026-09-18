@@ -73,7 +73,9 @@ lsblk -f                             # или blkid
 
 ```sh
 sudo -i guix system reconfigure ~/guix-config/systems/myhost.scm
-guix home reconfigure ~/guix-config/home/dyens.scm
+guix home reconfigure ~/guix-config/home/dyens.scm         # с графикой
+# или
+guix home reconfigure ~/guix-config/home/programming.scm   # без графики
 ```
 
 ### 5. Задать пароли
@@ -113,7 +115,9 @@ startx
 | `systems/vm.scm` | dev-VM под QEMU | `sudo -i guix system reconfigure` |
 | `systems/laptop.scm` | заготовка для физической машины (UEFI) | `sudo -i guix system reconfigure` |
 | `systems/t1.scm` | облачная VM: минимальный сервер, из него собирается образ | `guix system image`, см. «Облачная VM» |
-| `home/dyens.scm` | dotfiles, пакеты, i3, startx | `guix home reconfigure` |
+| `home/base.scm` | общая часть home: vim, git, tmux, Claude Code, bash, секреты | — (подключается модулем) |
+| `home/programming.scm` | home для программирования без графики (облачные VM) | `guix home reconfigure` |
+| `home/dyens.scm` | home с графикой: base + i3, шрифты, startx | `guix home reconfigure` |
 | `packages/claude-code.scm` | проприетарный бинарник, переупакованный под Guix | — (подключается модулем) |
 | `files/` | сырые dotfiles, подключаемые через `local-file` | — |
 | `files/secrets/*.yaml` | секреты, зашифрованные sops | `sops files/secrets/home.yaml` |
@@ -159,6 +163,30 @@ sudo -i guix system reconfigure -L ~/guix-config ~/guix-config/systems/vm.scm
 
 Новая машина — файл на полтора десятка строк. Общие изменения правятся
 в `base.scm` и разъезжаются по всем машинам сразу.
+
+### Как устроен `home/`
+
+Так же: `home/base.scm` — модуль `(home base)` с процедурой `make-home`,
+в нём всё для программирования (пакеты, bash, tmux, секреты). Точки входа
+передают машинно-зависимое и добавки:
+
+```scheme
+;; home/programming.scm — облачная VM, без графики
+(make-home
+ #:repo "~/guix-config"                     ; -> $GUIX_CONFIG
+ #:sysrec "sudo guix system reconfigure ~/guix-config/systems/$(hostname).scm"
+ #:homerec "guix home reconfigure ~/guix-config/home/programming.scm")
+
+;; home/dyens.scm — локальная VM: то же + графика
+(make-home
+ #:repo "/mnt/guix-config"
+ ...
+ #:extra-packages (… "i3-wm" "st" …)
+ #:extra-services (list … startx, .xinitrc, конфиг i3 …))
+```
+
+Инструмент для программирования — в `%programming-packages` в
+`home/base.scm`, приедет на все машины. Графическое — в `home/dyens.scm`.
 
 ### Обновить Claude Code
 
@@ -239,7 +267,7 @@ git -C ~/vms/guix-config commit -am "pin guix $(date +%F)"
 | Файл | Портируемость |
 |---|---|
 | `channels.scm` | полностью — это и есть гарантия одинаковости |
-| `home/dyens.scm`, `files/` | полностью, включая чужой дистрибутив |
+| `home/*.scm`, `files/` | полностью, включая чужой дистрибутив |
 | `systems/base.scm` | полностью |
 | `systems/<host>.scm` | свой на каждую машину: UUID, загрузчик, hostname |
 | `run-vm.sh` | только для VM-хостов |
@@ -340,7 +368,7 @@ cat ~/.ssh/id_ed25519.pub > files/keys/dyens-$(hostname).pub
 с коммитом конфига: `guix home roll-back` и `time-machine` берут ровно те
 секреты, что были в этом поколении.
 
-Ключ ищется в `~/.age-key` (задано в `home/dyens.scm`), затем в
+Ключ ищется в `~/.age-key` (задано в `home/base.scm`), затем в
 `~/.ssh/id_ed25519` — если публичный ssh-ключ машины внесён в `.sops.yaml`.
 Нет ключа — сервис секрета падает с сообщением в логе home-shepherd,
 остальное окружение работает.
@@ -350,7 +378,7 @@ cat ~/.ssh/id_ed25519.pub > files/keys/dyens-$(hostname).pub
 берётся из ключа, и у всех binary-секретов оно было бы одинаковым — `data`.
 
 Команды выполняются из корня репозитория (`/mnt/guix-config` в VM).
-В окружении Guix Home алиас `sops` уже есть (`home/dyens.scm`): он
+В окружении Guix Home алиас `sops` уже есть (`home/base.scm`): он
 подставляет `SOPS_AGE_KEY_FILE=~/.age-key`, а сам `sops` кладёт в профиль
 сервис секретов. На хосте без Guix Home заведите такой же руками:
 
@@ -368,7 +396,7 @@ sops updatekeys files/secrets/home.yaml
 guix shell age -- age-keygen -o ~/.age-key
 ```
 
-Новый секрет — ключ в `home.yaml` плюс строка в `home/dyens.scm`:
+Новый секрет — ключ в `home.yaml` плюс строка в `home/base.scm`:
 
 ```scheme
 (list (home-secret "bashrc.local" ".bashrc.local")
@@ -547,7 +575,95 @@ sudo guix shell e2fsprogs -- resize2fs /dev/vda2
 df -h /
 ```
 
-### 6. Дальше
+### 6. Репозиторий и пин Guix (на VM)
+
+Клонировать по https: ключа от GitHub на VM нет, а на чтение он не нужен.
+
+```sh
+git clone https://github.com/dyens/guix-config.git ~/guix-config
+cd ~/guix-config
+guix pull -C channels.scm \
+  --substitute-urls='https://mirror.yandex.ru/mirrors/guix https://bordeaux.guix.gnu.org'
+hash guix
+guix describe
+```
+
+`--substitute-urls` — откуда брать **собранные бинарники**. Исходники
+самого Guix `guix pull` берёт из **git** по `url` канала в `channels.scm`
+(`git.guix.gnu.org`), зеркала на это не влияют. Первый раз клонируется
+вся история Guix — долго; дальше она кэшируется в `~/.cache/guix/checkouts`.
+Если `git.guix.gnu.org` тормозит, в `channels.scm` можно поставить
+`https://codeberg.org/guix/guix.git`: коммит и `introduction` проверяются
+подписями, так что источник не важен.
+
+После **первого** `guix pull` перелогиньтесь (или выполните
+`. ~/.config/guix/current/etc/profile`): `/etc/profile` добавляет
+`~/.config/guix/current/bin` в `PATH`, только если каталог был на момент
+входа, а до первого pull его нет. Без этого `hash guix` не поможет —
+`guix describe` покажет системный Guix из образа, а не пиннутый.
+Правильный результат: `guix 002b1a1` и `sops-guix c53e27e`.
+
+Долго тянется фаза **`indexing objects`** — это уже не сеть: libgit2
+в один поток индексирует всю историю Guix (10–20 минут, `guile` на 100 %
+одного ядра). Не прерывать — начнётся заново. Это разовая плата, следующие
+`guix pull` докачивают только новые коммиты.
+
+Одно ядро — ограничение libgit2 (Guix клонирует через него, а не через
+`git`, чтобы проверять подписи коммитов), флага для потоков нет. Ускорить
+первый pull на новой машине можно, скопировав кэш с машины, где он уже
+есть, **с тем же `url` канала** (кэш привязан к URL):
+
+```sh
+rsync -a <машина>:.cache/guix/checkouts/ ~/.cache/guix/checkouts/
+```
+
+Предупреждение `channel 'sops-guix' is not trusted` — норма.
+
+Если pull упал с `cannot locate remote-tracking branch 'origin/keyring'`
+(перед этим в логе `SWH: found revision …`) — в кэше осталась битая копия
+канала, см. «Грабли». Удалить её и повторить pull:
+
+```sh
+for d in ~/.cache/guix/checkouts/*/; do echo "$d -> $(git -C "$d" remote get-url origin)"; done
+rm -rf ~/.cache/guix/checkouts/<каталог sops-guix>
+```
+
+### 7. Применить систему пиннутым Guix (на VM)
+
+Образ собран Guix'ом хоста; `reconfigure` переводит систему на пин:
+
+```sh
+sudo guix system reconfigure ~/guix-config/systems/t1.scm
+```
+
+Именно `sudo guix`, **без `-i`**: `guix pull` делал пользователь, а не root,
+и `sudo -i guix` взял бы старый системный Guix из профиля root.
+
+В выводе должно быть `bootloader successfully installed on '(/dev/vda)'`.
+Предупреждение про устаревший `%base-initrd-modules` — ожидаемое,
+см. комментарий в `t1.scm`. Строка `system loaded for fast reboot with
+'reboot --kexec'` — это возможность перезагрузиться, минуя BIOS и GRUB;
+для проверки загрузчика нужен обычный `reboot`.
+
+Проверка:
+
+```sh
+sudo reboot
+ssh t1
+guix system describe          # текущее поколение — новое
+```
+
+### 8. Home (на VM)
+
+Для программирования без графики — `home/programming.scm` (vim, git,
+tmux, Claude Code и прочее из `home/base.scm`, без i3 и шрифтов):
+
+```sh
+guix home reconfigure ~/guix-config/home/programming.scm
+```
+
+Дальше пересобирать алиасами: `homerec` — home, `sysrec` — систему
+(`systems/$(hostname).scm`, то есть `t1.scm`).
 
 <!-- TODO: дописывается по ходу установки t1 -->
 
@@ -606,6 +722,13 @@ GDM — тяжёлый GNOME-компонент, который тянет по�
   AVX/AVX2 даже под KVM. Собранные Bun'ом бинарники (Claude Code) на таком
   госте виснут в бесконечном цикле вместо честного `SIGILL`: `--version`
   работает, а TUI — нет. Проверка: `grep avx2 /proc/cpuinfo` в госте.
+- **Фолбэк на Software Heritage ломает кэш канала.** Если клон канала
+  не удался (у t1 так было с GitHub один раз, причина неизвестна), Guix
+  достаёт коммит из архива SWH и кладёт в `~/.cache/guix/checkouts/`
+  репозиторий с единственной веткой `master` и без ветки `keyring`. Проверить
+  подписи по нему нельзя: `cannot locate remote-tracking branch
+  'origin/keyring'`, и каждый следующий pull падает так же. Лечится
+  удалением этого каталога из кэша.
 - **qcow2 от `guix system image` — версии 1.1 со сжатием zstd.** Облако
   (OpenStack) отвечает на него «ошибкой чтения образа». Перепаковать:
   `qemu-img convert -c -O qcow2 -o compat=0.10`.

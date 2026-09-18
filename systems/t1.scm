@@ -27,6 +27,10 @@
   ;; (/dev/sda) — нет. Облако может подключить диск и так, и так: старая
   ;; VM с Ubuntu видела sda, новая с этим образом — vda. Без модуля initrd
   ;; не найдёт корень и уйдёт в REPL Guile.
+  ;;
+  ;; Пиннутый Guix предупреждает, что %base-initrd-modules устарел в пользу
+  ;; (base-initrd-modules linux-libre). Не менять, пока хост на старом Guix:
+  ;; там новой процедуры нет, и образ перестанет собираться.
   (initrd-modules (cons* "virtio_scsi" %base-initrd-modules))
   (kernel-arguments (list "console=tty0" "console=ttyS0,115200"))
 
