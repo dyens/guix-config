@@ -112,6 +112,7 @@ startx
 | `systems/base.scm` | общая часть всех машин | — (подключается модулем) |
 | `systems/vm.scm` | dev-VM под QEMU | `sudo -i guix system reconfigure` |
 | `systems/laptop.scm` | заготовка для физической машины (UEFI) | `sudo -i guix system reconfigure` |
+| `systems/t1.scm` | облачная VM: минимальный сервер, из него собирается образ | `guix system image`, см. «Облачная VM» |
 | `home/dyens.scm` | dotfiles, пакеты, i3, startx | `guix home reconfigure` |
 | `packages/claude-code.scm` | проприетарный бинарник, переупакованный под Guix | — (подключается модулем) |
 | `files/` | сырые dotfiles, подключаемые через `local-file` | — |
@@ -451,6 +452,105 @@ guix system image -t qcow2 --image-size=20G systems/vm.scm
 
 ---
 
+## Облачная VM (t1)
+
+Guix System на облачной VM (OpenStack) ставится **своим образом**:
+собираем qcow2 из `systems/t1.scm` на хосте, загружаем в панель облака,
+создаём из него VM. Установщик, ISO и конвертация чужой ОС не нужны.
+
+`systems/t1.scm` — намеренно минимальная система: сеть по DHCP, sshd
+только по ключу, sudo без пароля, `git`. Её задача — загрузиться и
+пустить по ssh. Всё остальное (пин Guix, home, секреты) доставляется
+уже на машине из этого репозитория.
+
+Железо облака: загрузка **BIOS** (не UEFI), диск **virtio-blk**
+(`/dev/vda`), сеть virtio-net с DHCP. cloud-init'а в Guix нет, поэтому
+всё, что Ubuntu берёт из метаданных облака, у нас зашито в конфиг:
+ssh-ключ (`files/keys/dyens-t1-cloud.pub`, публичная половина
+`~/.ssh/t1-cloud`), имя хоста и т. д.
+
+### 1. Собрать образ (на хосте)
+
+```sh
+guix system image -t qcow2 --image-size=9G \
+  --substitute-urls='https://mirror.yandex.ru/mirrors/guix https://bordeaux.guix.gnu.org' \
+  systems/t1.scm
+```
+
+Около 10 минут на холодную, дальше — секунды. На выходе путь
+`/gnu/store/…-image.qcow2` (~880 МБ, внутри система на 2.2 ГБ).
+
+`--image-size` — это размер **виртуального диска** в образе, корневой
+раздел растягивается на него целиком. На содержимое не влияет: лишнее —
+просто пустое место в ext4. Правило одно: **образ не больше диска VM**,
+иначе облако его не примет. Guix добавляет к этому размеру свои
+служебные разделы, так что `--image-size=10G` даёт образ на 10.04 GiB,
+который не влезает в диск на 10 GiB. 9G влезает во что угодно.
+
+### 2. Перепаковать в совместимый qcow2
+
+```sh
+qemu-img convert -c -O qcow2 -o compat=0.10 \
+  /gnu/store/…-image.qcow2 ~/vms/t1-guix-v2.qcow2
+qemu-img info ~/vms/t1-guix-v2.qcow2     # compat: 0.10, compression type: zlib
+```
+
+Guix пишет qcow2 версии 1.1 **со сжатием zstd**. Облако на таком падает
+с «ошибкой чтения образа» без подробностей. `compat=0.10` — самый старый
+формат qcow2, его читают все; `-c` сжимает zlib'ом (~930 МБ). Если
+облако не примет и его — то же без `-c` (~2.4 ГБ).
+
+### 3. Проверить локально (по желанию)
+
+Перед загрузкой в облако образ можно поднять в QEMU. Overlay не трогает
+исходник, диск задаётся больше образа — как будет в облаке:
+
+```sh
+qemu-img create -f qcow2 -b ~/vms/t1-guix-v2.qcow2 -F qcow2 /tmp/t1-test.qcow2 20G
+qemu-system-x86_64 -enable-kvm -cpu host -m 2048 -smp 2 \
+  -drive file=/tmp/t1-test.qcow2,if=virtio \
+  -nic user,model=virtio-net-pci,hostfwd=tcp::10023-:22 \
+  -display none -serial file:/tmp/t1-serial.log -daemonize
+ssh -i ~/.ssh/t1-cloud -p 10023 dyens@127.0.0.1
+```
+
+QEMU по умолчанию грузится через SeaBIOS — это и есть BIOS, как в облаке.
+
+### 4. Загрузить в облако и создать VM
+
+В панели: образ `t1-guix-v2.qcow2`, формат **qcow2**, загрузка BIOS.
+Диск VM — сколько нужно (у t1 — 100 ГБ); `/gnu/store` растёт с каждым
+`guix pull` и `reconfigure`, 10 ГБ для Guix мало. ssh-ключ в панели ни на
+что не влияет — cloud-init'а нет, ключ уже в образе.
+
+Вход:
+
+```sh
+ssh -i ~/.ssh/t1-cloud dyens@<ip>
+```
+
+После пересоздания VM на том же IP ssh ругнётся на сменившийся ключ
+хоста — это ожидаемо: `ssh-keygen -R <ip>`.
+
+### 5. Растянуть корень на весь диск
+
+Корень после загрузки — те же 9 ГБ, что в образе, остальное место на
+диске не размечено. На Ubuntu это молча делает cloud-init (`growpart`),
+здесь — руками, один раз. ext4 растягивается на смонтированном корне,
+перезагрузка не нужна:
+
+```sh
+lsblk                                         # диск vda, корень vda2
+sudo guix shell parted e2fsprogs -- parted /dev/vda resizepart 2 100%
+#   «Partition /dev/vda2 is being used. Are you sure?» -> Yes
+sudo guix shell e2fsprogs -- resize2fs /dev/vda2
+df -h /
+```
+
+### 6. Дальше
+
+<!-- TODO: дописывается по ходу установки t1 -->
+
 ## Графика: startx, без display manager
 
 GDM — тяжёлый GNOME-компонент, который тянет полстека ради экрана входа
@@ -506,6 +606,16 @@ GDM — тяжёлый GNOME-компонент, который тянет по�
   AVX/AVX2 даже под KVM. Собранные Bun'ом бинарники (Claude Code) на таком
   госте виснут в бесконечном цикле вместо честного `SIGILL`: `--version`
   работает, а TUI — нет. Проверка: `grep avx2 /proc/cpuinfo` в госте.
+- **qcow2 от `guix system image` — версии 1.1 со сжатием zstd.** Облако
+  (OpenStack) отвечает на него «ошибкой чтения образа». Перепаковать:
+  `qemu-img convert -c -O qcow2 -o compat=0.10`.
+- **`--image-size` — это корень, а не весь образ.** Guix добавляет свои
+  разделы, и образ `--image-size=10G` не влезает в диск на 10 GiB.
+- **Корень из образа не растёт сам** — cloud-init'а нет. После первой
+  загрузки: `parted resizepart` + `resize2fs`, см. «Облачная VM».
+- **Облако выбирает шину диска само.** VM с Ubuntu видела `/dev/sda`
+  (virtio-scsi), VM из нашего образа — `/dev/vda` (virtio-blk). Поэтому
+  корень в `t1.scm` описан меткой, а в initrd добавлен `virtio_scsi`.
 - **Пакет `rage` в Guix — это медиаплеер на EFL**, а не age-шифрование.
   Нужный пакет называется `age` (понадобится для `age-keygen`). Проверять состав пакета, а не только
   наличие имени: `guix show <имя>`.
