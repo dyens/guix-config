@@ -1145,6 +1145,71 @@ ip route get 160.79.104.10           # … dev xray0 src 198.18.0.1
 GitHub на `release-assets.githubusercontent.com`: тогда `curl -LO`,
 сверить с `.dgst` релиза и `guix hash` / `guix download file://…`.
 
+## Разработка проекта на t1
+
+Инструменты проекта не ставятся в home: они описаны в `manifest.scm` самого
+проекта и приезжают через direnv. В home — только то, что нужно всегда
+(Emacs, git, tmux, Claude Code), плюс сам `direnv` и хук в `files/bashrc`.
+
+Что уже есть на машине: Docker с compose и buildx («Docker»), доступ
+к корпоративной сети и реестру («WireGuard»), ключ для GitLab («Секреты»).
+
+### `.envrc` проекта
+
+`.envrc` с токенами и адресами в git проекта не хранится — копируется
+с машины на машину (`scp`). В конец дописывается блок для Guix:
+
+```sh
+# ---- t1 (Guix) ----
+# use/PATH_add — функции direnv. Makefile и scripts/ тоже подключают .envrc
+# обычным bash (`set -a; . ./.envrc`), где их нет, поэтому зовём под условием.
+if declare -F use_guix >/dev/null 2>&1; then
+  use guix -m manifest.scm                  # go, node, make, gcc из манифеста проекта
+  mkdir -p "$HOME/.local/share/corepack-bin"
+  corepack enable --install-directory "$HOME/.local/share/corepack-bin"
+  PATH_add "$HOME/.local/share/corepack-bin"
+fi
+export GOFLAGS=-tags=goolm                  # сборочный тег проекта
+export GOTOOLCHAIN=local                    # go из Guix, не качать toolchain из go.mod
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+export DOCKER_GID=$(stat -c %g /var/run/docker.sock)
+```
+
+Затем `direnv allow`. Первый вход в каталог долгий: Guix скачивает
+toolchain. Проверка: `go version`, `node --version`, `echo $DOCKER_GID`.
+
+- **`DOCKER_GID` считается из сокета**: GID группы `docker` на каждой
+  машине свой, а в `.envrc` с хоста записано его число.
+- **pnpm ставит corepack** по полю `packageManager` в `package.json`.
+  Каталог для шимов надо создать заранее (`mkdir -p`), сам corepack его
+  не создаёт. В корне репозитория `packageManager` нет — нужную версию
+  corepack берёт в каталоге фронтенда (`ui/web`).
+- **Guix на t1 новее, чем на хосте** (пин в `channels.scm` против Guix
+  Fedora): версии go и node могут отличаться от хостовых.
+
+### Реестр и образы
+
+```sh
+docker login docker-registry.k2int-ruclaw.loc     # нужен поднятый WireGuard
+make up
+```
+
+Большой образ может не докачаться с Docker Hub (таймаут на слое). Тогда
+проще перенести его с машины, где он уже есть:
+
+```sh
+docker save <образ> | ssh t1 'docker load'
+```
+
+### Интерфейс в браузере
+
+Сервисы слушают на самой VM (`localhost` в `.envrc`), наружу они не
+торчат. С ноутбука — пробросом порта:
+
+```sh
+ssh -L 8080:localhost:8080 t1
+```
+
 ## Графика: startx, без display manager
 
 GDM — тяжёлый GNOME-компонент, который тянет полстека ради экрана входа
