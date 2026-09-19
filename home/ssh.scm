@@ -1,13 +1,13 @@
 ;;; ssh-клиент: ~/.ssh/config и ключи из sops.
 ;;;
 ;;; Отступление от правила «приватная половина не покидает машину»
-;;; (README, «Приватные ssh-ключи»): ключ для GitLab хранится в sops, чтобы
-;;; пересоздание облачной VM не требовало выпускать и регистрировать новый.
-;;; Ключ отдельный — только для GitLab, не тот, которым заходят на машины;
-;;; отзыв — удалить его в GitLab.
+;;; (README, «Приватные ssh-ключи»): ключ для GitLab CROC хранится в sops,
+;;; чтобы пересоздание облачной VM не требовало выпускать и регистрировать
+;;; новый. Это тот же ключ, что на хосте (~/.ssh/crocgithub); им не
+;;; заходят на машины, отзыв — удалить его в GitLab.
 ;;;
-;;; Секрет files/secrets/ssh.yaml, ключ "gitlab-ed25519" → home-sops
-;;; расшифровывает в /run/user/<uid>/secrets/gitlab-ed25519 (права 400).
+;;; Секрет files/secrets/ssh.yaml, ключ "croc-gitlab" → home-sops
+;;; расшифровывает в /run/user/<uid>/secrets/croc-gitlab (права 400).
 ;;; В ~/.ssh/config путь через %i (uid) — он у ssh свой, без симлинков.
 ;;;
 ;;; Guix Home управляет только ~/.ssh/config (read-only); known_hosts и
@@ -26,7 +26,7 @@
   (list
    (simple-service 'ssh-secrets home-sops-secrets-service-type
                    (list (sops-secret
-                          (key '("gitlab-ed25519"))
+                          (key '("croc-gitlab"))
                           (file (local-file "../files/secrets/ssh.yaml" "ssh.yaml"))
                           (permissions #o400))))
 
@@ -36,7 +36,7 @@
               (list (openssh-host
                      (name "gitlab.croc.ru")
                      (user "git")
-                     (identity-file "/run/user/%i/secrets/gitlab-ed25519")
+                     (identity-file "/run/user/%i/secrets/croc-gitlab")
                      ;; Только этот ключ: иначе ssh перебирает все из агента
                      ;; и ~/.ssh/id_*, и GitLab может отбить по числу попыток.
                      (extra-content "  IdentitiesOnly yes\n"))))))))

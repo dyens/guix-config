@@ -127,7 +127,7 @@ startx
 | `systems/docker.scm` | сервис dockerd + группа docker | — (подключается в `systems/<host>.scm`) |
 | `home/docker.scm` | плагины `docker compose`/`buildx` в `~/.docker/cli-plugins` (входит в base) | — |
 | `home/ssh.scm` | `~/.ssh/config`, ключ GitLab из sops (входит в base) | — |
-| `files/secrets/ssh.yaml` | приватный ключ для GitLab, зашифрован sops | см. «Ключ для GitLab» |
+| `files/secrets/ssh.yaml` | приватный ключ для GitLab CROC (`croc-gitlab`), зашифрован sops | см. «Ключ для GitLab» |
 | `systems/wg-quick.scm` | WireGuard: конфиг wg-quick из sops + сервис + `/etc/hosts` | — (подключается в `systems/<host>.scm`) |
 | `files/secrets/wg-ruclaw.yaml` | конфиг wg-quick проектной сети ruclaw (с ключом), зашифрован sops | см. «WireGuard» |
 | `home/xray.scm` | VPN-клиент: Xray в home-shepherd, SOCKS 127.0.0.1:10808 (входит в base) | — (подключается модулем) |
@@ -349,32 +349,30 @@ cat ~/.ssh/id_ed25519.pub > files/keys/dyens-$(hostname).pub
 #### Исключение: ключ для GitLab
 
 Облачную VM пересоздают (так уже было с t1), и каждый раз выпускать и
-регистрировать в GitLab новый ключ неудобно — поэтому ключ **только для
-GitLab** хранится в sops (`files/secrets/ssh.yaml`, `home/ssh.scm`).
-Он отдельный: им не заходят на машины, отзыв — удалить его в GitLab.
-home-sops расшифровывает его в `/run/user/<uid>/secrets/gitlab-ed25519`,
-`~/.ssh/config` (его пишет Guix Home) указывает на него для
-`gitlab.croc.ru`.
+регистрировать в GitLab новый ключ неудобно — поэтому ключ **для GitLab
+CROC** хранится в sops (`files/secrets/ssh.yaml`, ключ `croc-gitlab`,
+`home/ssh.scm`). Это тот же ключ, что на хосте (`~/.ssh/crocgithub`); им
+не заходят на машины, отзыв — удалить его в GitLab. home-sops
+расшифровывает его в `/run/user/<uid>/secrets/croc-gitlab`, `~/.ssh/config`
+(его пишет Guix Home) указывает на него для `gitlab.croc.ru`.
 
-Создать (на хосте; открытый текст только в `/dev/shm`, в памяти):
+Положить (на хосте; ключ сразу шифруется, открытого текста на диске нет):
 
 ```sh
 cd ~/vms/guix-config
-T=$(mktemp -d /dev/shm/gitlab-key.XXXX)
-ssh-keygen -q -t ed25519 -N '' -C 'dyens gitlab (guix-config)' -f $T/k
-{ echo 'gitlab-ed25519: |'; sed 's/^/  /' $T/k; } \
+{ echo 'croc-gitlab: |'; sed 's/^/  /' ~/.ssh/crocgithub; } \
   | guix shell sops -- sops encrypt --input-type yaml --output-type yaml \
       --filename-override files/secrets/ssh.yaml /dev/stdin > files/secrets/ssh.yaml
-cp $T/k.pub files/keys/dyens-gitlab.pub
-rm -rf $T
-cat files/keys/dyens-gitlab.pub     # → GitLab: Edit profile → SSH Keys
-git add files/secrets/ssh.yaml files/keys/dyens-gitlab.pub
+git add files/secrets/ssh.yaml
 ```
+
+Если ключ защищён паролем, на VM ssh будет его спрашивать — для
+автоматической работы (git в скриптах, IDE) нужен ключ без пароля.
 
 На машине после `homerec` (и `herd restart home-sops-secrets`):
 
 ```sh
-ls -l /run/user/$(id -u)/secrets/gitlab-ed25519
+ls -l /run/user/$(id -u)/secrets/croc-gitlab
 ssh -T git@gitlab.croc.ru             # Welcome to GitLab, @…
 ```
 
