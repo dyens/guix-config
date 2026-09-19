@@ -937,6 +937,21 @@ curl -sI https://api.anthropic.com | head -1
 
 Логи: `~/.local/state/xray.log` (клиент), `/var/log/xray-tun.log` (tun).
 
+Если что-то не так, сначала разделить: сам VPN или tun?
+
+```sh
+# VPN мимо tun — прямо в SOCKS клиента; любой HTTP-код (404) = VPN работает
+curl -s -m 15 --socks5-hostname 127.0.0.1:10808 -o /dev/null -w '%{http_code}\n' https://api.anthropic.com
+# tun
+ip -br addr show xray0               # должен быть 198.18.0.1/32
+ip route get 160.79.104.10           # … dev xray0 src 198.18.0.1
+```
+
+- **`Invalid argument` на `connect()` / `ip route get` через xray0** — у
+  интерфейса нет IPv4-адреса, и ядро не выбирает исходный. Поэтому сервис
+  назначает `xray0` адрес `198.18.0.1/32` (на хосте с tun2socks и ядром
+  Fedora обходилось без него).
+
 ### Пакет Xray
 
 `packages/xray.scm` — официальный статический бинарник релиза (как

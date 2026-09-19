@@ -31,6 +31,13 @@
 
 (define %interface "xray0")
 
+;; Собственный IPv4 интерфейса. Без него у xray0 только IPv6 link-local, и
+;; ядро (7.1 на t1) не выбирает исходный адрес для маршрута через него:
+;; connect() сразу падает с EINVAL, `ip route get` — «Invalid argument».
+;; 198.18.0.0/15 — зарезервированный немаршрутизируемый диапазон, его
+;; обычно и берут tun-прокси; /32 не добавляет своего маршрута.
+(define %address "198.18.0.1/32")
+
 (define (xray-tun-config socks-port)
   (plain-file "xray-tun.json"
               (string-append "{
@@ -71,6 +78,7 @@
                 (usleep 100000)
                 (wait (+ n 1))))
             (let ((ip #$(file-append iproute "/sbin/ip")))
+              (system* ip "addr" "replace" #$%address "dev" #$%interface)
               (system* ip "link" "set" "dev" #$%interface "up")
               (for-each (lambda (dst)
                           (system* ip "route" "replace" dst "dev" #$%interface))
