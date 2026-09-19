@@ -123,6 +123,9 @@ startx
 | `files/emacs/` | конфиг Emacs → `~/.config/emacs` | — |
 | `packages/claude-code.scm` | проприетарный бинарник, переупакованный под Guix | — (подключается модулем) |
 | `packages/xray.scm` | Xray-core, статический бинарник релиза | — (подключается модулем) |
+| `packages/docker.scm` | Docker Engine 29, compose, buildx — статические бинарники | — (подключается модулем) |
+| `systems/docker.scm` | сервис dockerd + группа docker | — (подключается в `systems/<host>.scm`) |
+| `home/docker.scm` | плагины `docker compose`/`buildx` в `~/.docker/cli-plugins` (входит в base) | — |
 | `home/xray.scm` | VPN-клиент: Xray в home-shepherd, SOCKS 127.0.0.1:10808 (входит в base) | — (подключается модулем) |
 | `systems/xray-tun.scm` | tun `xray0` + маршруты на выбранные адреса через этот SOCKS | — (подключается в `systems/<host>.scm`) |
 | `files/secrets/xray.yaml` | конфиг Xray-клиента (ключи, сервер), зашифрован sops | см. «VPN» |
@@ -874,6 +877,39 @@ AI-пакеты (agent-shell, gptel, ellama, eca), рабочие модули
   `.eln`; нативно собран лишь встроенный Lisp самого Emacs). При первом
   интерактивном запуске Emacs нативно компилирует их в фоне в
   `~/.local/state/emacs/eln-cache` — первый запуск медленнее, это норма.
+
+## Docker
+
+Docker из Guix застрял на 20.10 (2023) с compose v1 на Python и без
+buildx — свежим compose-файлам (`!reset`/`!override`, profiles) и
+Dockerfile с BuildKit (`RUN --mount=type=cache`) этого мало. Поэтому, как
+с Xray, — официальные статические бинарники (`packages/docker.scm`):
+Engine 29 (dockerd, containerd, runc, CLI), compose v5, buildx.
+
+| Часть | Где |
+|---|---|
+| `dockerd` (сам запускает свой containerd), группа `docker`, `docker` CLI в системном профиле | `systems/docker.scm` → `docker-static-services` в `systems/<host>.scm` (сейчас t1) |
+| плагины `docker compose`, `docker buildx` | `home/docker.scm` → `~/.docker/cli-plugins/`, входит в `make-home` |
+
+`daemon.json` собирается в сервисе: `cgroupfs` (systemd нет), insecure-
+реестры параметром, сети compose — из `10.210.0.0/16`, а не из дефолтных
+172.17–172.31: те пересекаются с сетями за VPN (ruclaw — `172.31.0.0/20`, …).
+Статические бинарники не обёрнуты, как guix-овский docker, поэтому `PATH`
+для dockerd (iptables, ip, modprobe, …) и `LINUX_MODULE_DIRECTORY` заданы
+в сервисе явно.
+
+Применить и проверить:
+
+```sh
+git pull && sysrec && homerec
+# группа docker появится только в новой сессии: tmux kill-server, выйти, войти
+docker version                 # Client и Server 29.x
+docker compose version
+docker buildx version
+docker run --rm hello-world
+```
+
+Лог демона: `/var/log/docker.log`.
 
 ## VPN (Xray)
 

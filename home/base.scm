@@ -24,6 +24,7 @@
   #:use-module (packages claude-code)        ; см. packages/claude-code.scm
   #:use-module (home emacs)                  ; Emacs и его конфиг
   #:use-module (home xray)                   ; VPN-клиент
+  #:use-module (home docker)                 ; плагины docker compose/buildx
   #:export (make-home))
 
 ;; Зашифрованные секреты. В стор уезжает только шифротекст, открытый
@@ -112,4 +113,5 @@
                       `(("tmux/tmux.conf" ,(local-file "../files/tmux.conf")))))
      %emacs-services
      %xray-services
+     %docker-cli-services
      extra-services))))

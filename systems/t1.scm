@@ -18,6 +18,7 @@
 (use-modules (gnu)
              (gnu services desktop)      ; elogind
              (systems xray-tun)          ; VPN для выбранных адресов
+             (systems docker)            ; Docker Engine (статический)
              (gnu services networking)   ; dhcpcd, ntp
              (gnu services ssh))         ; openssh-service-type
 
@@ -57,7 +58,7 @@
                 (comment "Dyens")
                 (group "users")
                 (home-directory "/home/dyens")
-                (supplementary-groups '("wheel")))
+                (supplementary-groups '("wheel" "docker")))
                %base-user-accounts))
 
   (sudoers-file
@@ -77,17 +78,22 @@
                  ;; Xray-клиент из home). Как net.sh на хосте.
                  (xray-tun-service
                   '("160.79.104.0/23"      ; Anthropic (AS399358): api.anthropic.com — Claude Code
-                    "146.59.209.152"))     ; из net.sh хоста (OVH)
-                 (service openssh-service-type
-                          (openssh-configuration
-                           (password-authentication? #f)
-                           (permit-root-login #f)
-                           ;; COLORTERM=truecolor от клиента (в ~/.ssh/config:
-                           ;; SendEnv COLORTERM). ssh по умолчанию его не
-                           ;; передаёт, и emacs -nw рисует тему в 256 цветах.
-                           (accepted-environment '("COLORTERM"))
-                           (authorized-keys
-                            `(("dyens" ,(local-file "../files/keys/dyens-t1-cloud.pub")))))))
+                    "146.59.209.152")))    ; из net.sh хоста (OVH)
+           (docker-static-services
+            ;; Как в /etc/docker/daemon.json хоста (реестры проекта ruclaw).
+            #:insecure-registries '("docker-registry.k2int-ruclaw.loc"
+                                    "registry.int.nova-platform.io"))
+           (list
+            (service openssh-service-type
+                     (openssh-configuration
+                      (password-authentication? #f)
+                      (permit-root-login #f)
+                      ;; COLORTERM=truecolor от клиента (в ~/.ssh/config:
+                      ;; SendEnv COLORTERM). ssh по умолчанию его не
+                      ;; передаёт, и emacs -nw рисует тему в 256 цветах.
+                      (accepted-environment '("COLORTERM"))
+                      (authorized-keys
+                       `(("dyens" ,(local-file "../files/keys/dyens-t1-cloud.pub")))))))
            (modify-services %base-services
              (guix-service-type config =>
                                 (guix-configuration
