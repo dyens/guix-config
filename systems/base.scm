@@ -80,9 +80,9 @@
              (modify-services %desktop-services
                (delete gdm-service-type)
                (guix-service-type config =>
-                 (guix-configuration
-                  (inherit config)
-                  (substitute-urls %substitute-urls))))))
+                                  (guix-configuration
+                                   (inherit config)
+                                   (substitute-urls %substitute-urls))))))
 
     (bootloader (bootloader-configuration
                  (bootloader bootloader-type)

@@ -20,4 +20,5 @@
 (require 'dy-python)
 (require 'dy-go)
 (require 'dy-rust)
+(require 'dy-scheme)      ; Guile и Guix: geiser, emacs-guix, lispyville
 (require 'dy-org)         ; org, agenda, capture, denote

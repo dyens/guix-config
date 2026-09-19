@@ -760,6 +760,32 @@ files/emacs/
 `homerec`. Customize (`M-x customize`) пишет в `~/.local/state/emacs/custom.el`
 — это состояние машины, в репозиторий не попадает.
 
+### Guile и Guix (`dy-scheme.el`)
+
+REPL geiser — это `guix repl`, а не голый `guile`: в нём сразу модули
+Guix из `guix pull` (с каналами, например sops-guix) и уже
+скомпилированные `.go`. Модули этого репозитория видны через
+`$GUIX_CONFIG` (`(systems base)`, `(home base)`, `(packages …)`).
+
+В `scheme-mode`:
+
+| Клавиши | Что |
+|---|---|
+| `SPC m r` | REPL (`guix repl`) |
+| `SPC m d` / `SPC m b` / `SPC m l` | eval определения / буфера / выражения перед курсором |
+| `M-.` / `M-,` | к определению (в том числе в исходники Guix) и обратно |
+| `SPC m e` | раскрыть макрос на месте (macrostep) |
+| `SPC m g b` / `g l` / `g s` | собрать / lint / скачать исходник пакета под курсором |
+| `C-c .` | остальные команды `guix-devel-mode` |
+| `M-x guix` | пакеты, профили, поколения (emacs-guix) |
+
+Отступы и подсветка форм Guix (`package`, `origin`, `modify-phases`, …)
+— `guix-devel-mode` (emacs-guix), включается сам. Скобки — lispyville
+(и в Emacs Lisp): `d`/`c`/`y` не ломают баланс, `>`/`<` в normal —
+затянуть/вытолкнуть выражение, `M-j`/`M-k` — переставить. Сниппеты
+самого Guix (`guix-package`, `guix-origin`, сообщения коммитов) берутся
+из git-кэша каналов `~/.cache/guix/checkouts/*/etc/snippets/yas`.
+
 ### Добавить пакет
 
 1. Строка в `%emacs-packages` (`home/emacs.scm`); имя —
@@ -817,6 +843,14 @@ AI-пакеты (agent-shell, gptel, ellama, eca), рабочие модули
   клиенте + `AcceptEnv` на сервере (в `t1.scm` уже есть). Задавать
   `COLORTERM` на сервере жёстко не стоит: в консоли без truecolor
   (tty локальной VM) это даст мусор.
+- **`guix shell -m` кэширует окружение по файлу манифеста**, а не по
+  тому, что он подключает. После правки `home/emacs.scm` манифест
+  `home/emacs-manifest.scm` не изменился — и shell отдаст старое
+  окружение без новых пакетов (`Cannot open load file …`). Нужен
+  `guix shell --rebuild-cache -m home/emacs-manifest.scm …`.
+- **Модули каналов в REPL — только те, что в `guix pull` этой машины.**
+  На хосте нет канала sops-guix, поэтому eval `home/base.scm` там
+  упадёт на `(sops secrets)`; на t1 канал есть.
 - **`~/.emacs.d` побеждает `~/.config/emacs`.** Если на машине есть
   `~/.emacs.d` (или `~/.emacs`), Emacs возьмёт его. На хосте — либо
   `--init-directory`, либо переименовать старый каталог.

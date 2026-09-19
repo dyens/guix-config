@@ -83,8 +83,8 @@
                             `(("dyens" ,(local-file "../files/keys/dyens-t1-cloud.pub")))))))
            (modify-services %base-services
              (guix-service-type config =>
-               (guix-configuration
-                (inherit config)
-                ;; Как в systems/base.scm: ci.guix.gnu.org недоступен.
-                (substitute-urls '("https://mirror.yandex.ru/mirrors/guix"
-                                   "https://bordeaux.guix.gnu.org"))))))))
+                                (guix-configuration
+                                 (inherit config)
+                                 ;; Как в systems/base.scm: ci.guix.gnu.org недоступен.
+                                 (substitute-urls '("https://mirror.yandex.ru/mirrors/guix"
+                                                    "https://bordeaux.guix.gnu.org"))))))))

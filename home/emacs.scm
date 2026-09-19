@@ -63,7 +63,13 @@
          "emacs-docker-compose-mode"
          "emacs-yaml-mode"
          "emacs-markdown-mode"
+
+         ;; Guile и Guix (dy-scheme.el)
          "emacs-geiser-guile"
+         "emacs-macrostep-geiser"
+         "emacs-guix"
+         "emacs-lispyville"
+         "emacs-rainbow-delimiters"
 
          ;; Грамматики tree-sitter (dy-treesit.el, dy-go.el, dy-rust.el)
          "tree-sitter-python"

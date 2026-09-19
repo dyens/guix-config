@@ -184,14 +184,4 @@ feat/PCS-123, feat/JIRA-X-Y   -> feat(PCS-123): "
   :custom
   (markdown-command "pandoc -f gfm -t html5 --standalone"))
 
-;; Guile — для этого самого репозитория с конфигами Guix.
-(use-package geiser-guile
-  :commands (geiser geiser-guile)
-  :config
-  (setq geiser-guile-binary (or (executable-find "guile") "guile"))
-  (dolist (dir '("~/.config/guix/current/share/guile/site/3.0"
-                 "~/.guix-home/profile/share/guile/site/3.0"))
-    (when (file-directory-p (expand-file-name dir))
-      (add-to-list 'geiser-guile-load-path (expand-file-name dir)))))
-
 (provide 'dy-packages)
