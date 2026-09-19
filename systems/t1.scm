@@ -15,6 +15,7 @@
 ;;; Как собрать образ и поднять VM — README, раздел «Облачная VM».
 
 (use-modules (gnu)
+             (gnu services desktop)      ; elogind
              (gnu services networking)   ; dhcpcd, ntp
              (gnu services ssh))         ; openssh-service-type
 
@@ -64,6 +65,11 @@
 
   (services
    (append (list (service dhcpcd-service-type)
+                 ;; elogind создаёт /run/user/$UID при входе (через PAM).
+                 ;; Без него нет XDG_RUNTIME_DIR, и guix home падает на старте
+                 ;; home-shepherd: «mkdir: Permission denied: "/run/user"».
+                 ;; В systems/base.scm он приходит с %desktop-services.
+                 (service elogind-service-type)
                  (service ntp-service-type)
                  (service openssh-service-type
                           (openssh-configuration

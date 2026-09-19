@@ -662,6 +662,16 @@ tmux, Claude Code и прочее из `home/base.scm`, без i3 и шрифт�
 guix home reconfigure ~/guix-config/home/programming.scm
 ```
 
+Нужен elogind в системе (в `t1.scm` он есть): он создаёт при входе
+`/run/user/$UID`, без которого не стартует home-shepherd, а с ним и
+секреты. Симптом, если его нет, — в самом конце reconfigure:
+`guix home: error: mkdir: Permission denied: "/run/user"`. Лечится
+`sudo guix system reconfigure …/t1.scm`, `sudo reboot` (чтобы PAM создал
+сессию уже через elogind) и повторным `guix home reconfigure`.
+
+Проверка после входа: `echo $XDG_RUNTIME_DIR` → `/run/user/1000`,
+`herd status` (без sudo) показывает домашние сервисы.
+
 Дальше пересобирать алиасами: `homerec` — home, `sysrec` — систему
 (`systems/$(hostname).scm`, то есть `t1.scm`).
 
@@ -722,6 +732,9 @@ GDM — тяжёлый GNOME-компонент, который тянет по�
   AVX/AVX2 даже под KVM. Собранные Bun'ом бинарники (Claude Code) на таком
   госте виснут в бесконечном цикле вместо честного `SIGILL`: `--version`
   работает, а TUI — нет. Проверка: `grep avx2 /proc/cpuinfo` в госте.
+- **Без elogind не работает Guix Home.** `/run/user/$UID` создаёт он;
+  `%base-services` его не содержат, `%desktop-services` — содержат.
+  В минимальной системе добавлять явно: `(service elogind-service-type)`.
 - **Фолбэк на Software Heritage ломает кэш канала.** Если клон канала
   не удался (у t1 так было с GitHub один раз, причина неизвестна), Guix
   достаёт коммит из архива SWH и кладёт в `~/.cache/guix/checkouts/`
