@@ -6,10 +6,14 @@
         evil-want-keybinding nil          ; клавиши для режимов — evil-collection
         evil-want-C-i-jump nil
         evil-want-C-u-scroll nil          ; C-u настроен ниже вручную
-        ;; В терминале не перехватывать сырой ESC: протокол kitty (kkp,
-        ;; dy-terminal.el) уже различает ESC/Meta/escape-последовательности,
-        ;; а перехват evil съедал бы ведущий \e каждой из них.
-        evil-intercept-esc nil
+        ;; `evil-intercept-esc' — по умолчанию (t): в терминале ESC,
+        ;; за которым за `evil-esc-delay' ничего не пришло, — это ESC,
+        ;; а не префикс Meta. Отключать нельзя: kkp (dy-terminal.el)
+        ;; работает не везде — в tmux и терминалах без протокола kitty его
+        ;; нет, и без перехвата ESC склеивается со следующей клавишей
+        ;; (Esc C-w → C-M-w), из insert не выйти. Там, где kkp включился,
+        ;; его define-key "\e[…" сам заменяет обёртку evil на ESC — они
+        ;; не мешают друг другу.
         evil-cross-lines t                ; f/t через строки
         evil-vsplit-window-right t
         evil-split-window-below t
@@ -28,6 +32,13 @@
   (if (display-graphic-p)
       (keymap-set evil-normal-state-map "C-i" #'evil-jump-forward)
     (define-key evil-normal-state-map [C-i] #'evil-jump-forward))
+
+  ;; C-w C-h/C-j/C-k/C-l — как в Vim. В evil-window-map есть только
+  ;; буквенные h/j/k/l, контрольных вариантов нет.
+  (keymap-set evil-window-map "C-h" #'evil-window-left)
+  (keymap-set evil-window-map "C-j" #'evil-window-down)
+  (keymap-set evil-window-map "C-k" #'evil-window-up)
+  (keymap-set evil-window-map "C-l" #'evil-window-right)
 
   (keymap-set evil-normal-state-map "C-;" #'iedit-mode)
   (keymap-set evil-insert-state-map "C-;" #'iedit-mode)

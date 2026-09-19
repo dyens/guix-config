@@ -843,6 +843,14 @@ AI-пакеты (agent-shell, gptel, ellama, eca), рабочие модули
   клиенте + `AcceptEnv` на сервере (в `t1.scm` уже есть). Задавать
   `COLORTERM` на сервере жёстко не стоит: в консоли без truecolor
   (tty локальной VM) это даст мусор.
+- **`C-w C-h/j/k/l` в evil нет** — только буквенные `C-w h/j/k/l`.
+  Контрольные варианты, как в Vim, добавлены в `dy-evil.el`.
+- **ESC в `emacs -nw` без kkp.** Протокол kitty (kkp) включается, только
+  если терминал на него ответил: alacritty — да, tmux — нет. Без kkp ESC
+  для Emacs — префикс Meta, и без перехвата evil `Esc C-w` читается как
+  `C-M-w`: из insert не выйти (заметно в REPL geiser — он открывается
+  в insert). Поэтому `evil-intercept-esc` оставлен по умолчанию; где kkp
+  включился, его `define-key "\e[…"` сам снимает обёртку evil.
 - **`guix shell -m` кэширует окружение по файлу манифеста**, а не по
   тому, что он подключает. После правки `home/emacs.scm` манифест
   `home/emacs-manifest.scm` не изменился — и shell отдаст старое
