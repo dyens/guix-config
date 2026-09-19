@@ -126,6 +126,8 @@ startx
 | `packages/docker.scm` | Docker Engine 29, compose, buildx — статические бинарники | — (подключается модулем) |
 | `systems/docker.scm` | сервис dockerd + группа docker | — (подключается в `systems/<host>.scm`) |
 | `home/docker.scm` | плагины `docker compose`/`buildx` в `~/.docker/cli-plugins` (входит в base) | — |
+| `systems/wg-quick.scm` | WireGuard: конфиг wg-quick из sops + сервис + `/etc/hosts` | — (подключается в `systems/<host>.scm`) |
+| `files/secrets/wg-ruclaw.yaml` | конфиг wg-quick проектной сети ruclaw (с ключом), зашифрован sops | см. «WireGuard» |
 | `home/xray.scm` | VPN-клиент: Xray в home-shepherd, SOCKS 127.0.0.1:10808 (входит в base) | — (подключается модулем) |
 | `systems/xray-tun.scm` | tun `xray0` + маршруты на выбранные адреса через этот SOCKS | — (подключается в `systems/<host>.scm`) |
 | `files/secrets/xray.yaml` | конфиг Xray-клиента (ключи, сервер), зашифрован sops | см. «VPN» |
@@ -910,6 +912,60 @@ docker run --rm hello-world
 ```
 
 Лог демона: `/var/log/docker.log`.
+
+## WireGuard (проектная сеть ruclaw)
+
+Проектная сеть ruclaw (`172.31.0.0/20`, `.16.0/20`, `.32.0/20`: реестр
+образов, nexus, vault, keycloak, livekit) — WireGuard. На хосте это
+соединение NetworkManager, на t1 — `systems/wg-quick.scm`: весь конфиг
+wg-quick (с приватным ключом) лежит в sops, системный sops-guix
+расшифровывает его при загрузке в `/run/secrets/ruclaw.conf`, сервис
+`wg-ruclaw` делает `wg-quick up`. Штатный `wireguard-service-type` не
+подошёл: пиры описываются в конфиге системы, адрес сервера и ключи ушли бы
+в стор и git.
+
+**Ключ и адрес — те же, что у хоста** (`10.8.0.4`). Сервер WireGuard
+считает их одним клиентом: одновременно туннель работает только на одной
+машине — перед подъёмом на t1 опустите его на хосте
+(`nmcli connection down ruclaw`), и наоборот.
+
+Имена `*.k2int-ruclaw.loc` — статически в `/etc/hosts` (`#:hosts` в
+`t1.scm`), DNS внутри VPN не используется. Появилось новое имя — строка
+туда и `sysrec`.
+
+### Секрет с конфигом (один раз, на хосте)
+
+```sh
+cd ~/vms/guix-config
+sudo wg show ruclaw allowed-ips      # убедиться: НЕТ 0.0.0.0/0 — иначе в туннель уйдёт и ssh
+{ echo 'ruclaw.conf: |'
+  sudo wg showconf ruclaw | sed '/^\[Interface\]/a Address = 10.8.0.4/32' | sed 's/^/  /'
+} | guix shell sops -- sops encrypt --input-type yaml --output-type yaml \
+      --filename-override files/secrets/wg-ruclaw.yaml /dev/stdin > files/secrets/wg-ruclaw.yaml
+git add files/secrets/wg-ruclaw.yaml
+```
+
+`wg showconf` не содержит адреса интерфейса — его вставляет `sed`. Строки
+`DNS =` в конфиге быть не должно: wg-quick переписал бы `/etc/resolv.conf`.
+
+### На машине
+
+Системному sops нужен age-ключ root (один раз):
+
+```sh
+sudo install -D -m 600 ~/.age-key /root/.config/sops/age/keys.txt
+```
+
+Затем `git pull && sysrec`. Проверка:
+
+```sh
+sudo herd status sops-secrets wg-ruclaw
+sudo wg show ruclaw latest-handshakes     # недавнее время = сервер отвечает
+ping -c2 172.31.32.4
+curl -skI https://docker-registry.k2int-ruclaw.loc/v2/ | head -1   # или http://
+```
+
+Опустить/поднять: `sudo herd stop wg-ruclaw` / `sudo herd start wg-ruclaw`.
 
 ## VPN (Xray)
 

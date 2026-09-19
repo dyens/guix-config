@@ -7,10 +7,11 @@
 ;;; Паролей нет ни у кого: вход только по ключу, sudo для wheel
 ;;; без пароля. Консоль дублируется на ttyS0 (console log в облаке).
 ;;;
-;;; Это минимальная система: сеть, ssh, sudo, git, elogind, VPN-туннель.
-;;; systems/base.scm и каналы не нужны, чтобы образ собирался любым Guix;
-;;; из репозитория подключаются только (packages xray) и (systems xray-tun)
-;;; (путь добавляет add-to-load-path ниже).
+;;; Сервер для разработки: сеть, ssh, sudo, git, elogind, Docker, VPN
+;;; (Xray-tun для Anthropic, WireGuard ruclaw). Модули репозитория
+;;; подключаются через add-to-load-path ниже; нужен канал sops-guix
+;;; (системные секреты) — `guix pull -C channels.scm`, либо `-L` на его
+;;; модули. Первичный образ (README, «Облачная VM») собирался ещё без них.
 ;;;
 ;;; Как собрать образ и поднять VM — README, раздел «Облачная VM».
 
@@ -20,7 +21,9 @@
              (systems xray-tun)          ; VPN для выбранных адресов
              (systems docker)            ; Docker Engine (статический)
              (gnu services networking)   ; dhcpcd, ntp
-             (gnu services ssh))         ; openssh-service-type
+             (gnu services ssh)          ; openssh-service-type
+             (systems wg-quick)          ; WireGuard из конфига в sops
+             (sops services sops))       ; системные секреты (канал sops-guix)
 
 (operating-system
   (host-name "t1")
@@ -79,6 +82,19 @@
                  (xray-tun-service
                   '("160.79.104.0/23"      ; Anthropic (AS399358): api.anthropic.com — Claude Code
                     "146.59.209.152")))    ; из net.sh хоста (OVH)
+           ;; Системные секреты sops: расшифровка в /run/secrets при загрузке.
+           ;; Ключ root — /root/.config/sops/age/keys.txt (см. README, «WireGuard»).
+           (list (service sops-secrets-service-type (sops-service-configuration)))
+           ;; Проектная сеть ruclaw. Тот же ключ и адрес (10.8.0.4), что у хоста:
+           ;; одновременно туннель работает только на одной машине.
+           (wg-quick-services
+            "ruclaw" (local-file "../files/secrets/wg-ruclaw.yaml" "wg-ruclaw.yaml")
+            ;; DNS внутри VPN (172.31.32.1) не используем — только эти имена.
+            #:hosts '(("172.31.32.4"  . "docker-registry.k2int-ruclaw.loc")
+                      ("172.31.32.4"  . "nexus.k2int-ruclaw.loc")
+                      ("172.31.32.14" . "vault.k2int-ruclaw.loc")
+                      ("172.31.32.19" . "livekit.k2int-ruclaw.loc")
+                      ("172.31.32.19" . "keycloak.k2int-ruclaw.loc")))
            (docker-static-services
             ;; Как в /etc/docker/daemon.json хоста (реестры проекта ruclaw).
             #:insecure-registries '("docker-registry.k2int-ruclaw.loc"
