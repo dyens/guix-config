@@ -21,6 +21,10 @@ PS1='\[\033[1;32m\]\u@\h\[\033[0m\] \[\033[1;34m\]\w\[\033[0m\]\$ '
 # Обновление версии — правкой packages/claude-code.scm, см. README.
 export DISABLE_UPDATES=1
 
+# direnv: .envrc проекта (окружение из manifest.scm, переменные) —
+# при входе в каталог. direnv ставит home/emacs.scm (он нужен и Emacs).
+command -v direnv >/dev/null && eval "$(direnv hook bash)"
+
 # Локальные настройки и СЕКРЕТЫ.
 #
 # Этот файл (files/bashrc) уезжает в /gnu/store, который читается любым
