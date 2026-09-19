@@ -26,6 +26,7 @@
   #:use-module (home xray)                   ; VPN-клиент
   #:use-module (home docker)                 ; плагины docker compose/buildx
   #:use-module (home wireguard)              ; секреты WireGuard (туннель — в системе)
+  #:use-module (home ssh)                    ; ~/.ssh/config, ключ GitLab из sops
   #:export (make-home))
 
 ;; Зашифрованные секреты. В стор уезжает только шифротекст, открытый
@@ -116,4 +117,5 @@
      %xray-services
      %docker-cli-services
      %wireguard-secrets
+     %ssh-services
      extra-services))))
