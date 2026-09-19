@@ -7,15 +7,17 @@
 ;;; Паролей нет ни у кого: вход только по ключу, sudo для wheel
 ;;; без пароля. Консоль дублируется на ttyS0 (console log в облаке).
 ;;;
-;;; Это МИНИМАЛЬНАЯ система для первой загрузки: сеть, ssh, sudo, git.
-;;; Файл самодостаточен (не тянет systems/base.scm и каналы), чтобы
-;;; образ собирался любым Guix. Дальше на машине клонируется репозиторий
-;;; и система доустанавливается уже из него.
+;;; Это минимальная система: сеть, ssh, sudo, git, elogind, VPN-туннель.
+;;; systems/base.scm и каналы не нужны, чтобы образ собирался любым Guix;
+;;; из репозитория подключаются только (packages xray) и (systems xray-tun)
+;;; (путь добавляет add-to-load-path ниже).
 ;;;
 ;;; Как собрать образ и поднять VM — README, раздел «Облачная VM».
 
+(add-to-load-path (dirname (dirname (current-filename))))
 (use-modules (gnu)
              (gnu services desktop)      ; elogind
+             (systems xray-tun)          ; VPN для выбранных адресов
              (gnu services networking)   ; dhcpcd, ntp
              (gnu services ssh))         ; openssh-service-type
 
@@ -71,6 +73,11 @@
                  ;; В systems/base.scm он приходит с %desktop-services.
                  (service elogind-service-type)
                  (service ntp-service-type)
+                 ;; Эти адреса — через VPN (tun xray0 → SOCKS 10808 →
+                 ;; Xray-клиент из home). Как net.sh на хосте.
+                 (xray-tun-service
+                  '("160.79.104.0/23"      ; Anthropic (AS399358): api.anthropic.com — Claude Code
+                    "146.59.209.152"))     ; из net.sh хоста (OVH)
                  (service openssh-service-type
                           (openssh-configuration
                            (password-authentication? #f)

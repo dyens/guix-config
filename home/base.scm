@@ -1,9 +1,9 @@
 ;;; Общая часть домашнего окружения: всё, что нужно для программирования
 ;;; на любой машине, с графикой или без.
 ;;;
-;;; Здесь: vim, Emacs (home/emacs.scm), git, tmux, Claude Code, bash, секреты. Графика (i3,
-;;; шрифты, startx) сюда НЕ входит — её добавляет home/dyens.scm через
-;;; #:extra-packages / #:extra-services.
+;;; Здесь: vim, Emacs (home/emacs.scm), git, tmux, Claude Code, bash, секреты,
+;;; VPN-клиент Xray (home/xray.scm). Графика (i3, шрифты, startx) сюда НЕ
+;;; входит — её добавляет home/dyens.scm через #:extra-packages / #:extra-services.
 ;;;
 ;;; Точки входа:
 ;;;     home/programming.scm — только это (облачные VM, сервер без X)
@@ -23,6 +23,7 @@
   #:use-module (sops home services sops)     ; home-sops-secrets-service-type
   #:use-module (packages claude-code)        ; см. packages/claude-code.scm
   #:use-module (home emacs)                  ; Emacs и его конфиг
+  #:use-module (home xray)                   ; VPN-клиент
   #:export (make-home))
 
 ;; Зашифрованные секреты. В стор уезжает только шифротекст, открытый
@@ -107,4 +108,5 @@
                       ;; Пути относительно ~/.config, без префикса .config/
                       `(("tmux/tmux.conf" ,(local-file "../files/tmux.conf")))))
      %emacs-services
+     %xray-services
      extra-services))))

@@ -122,6 +122,10 @@ startx
 | `home/emacs-manifest.scm` | тот же Emacs без guix home — попробовать на любой машине | `guix shell -m` |
 | `files/emacs/` | конфиг Emacs → `~/.config/emacs` | — |
 | `packages/claude-code.scm` | проприетарный бинарник, переупакованный под Guix | — (подключается модулем) |
+| `packages/xray.scm` | Xray-core, статический бинарник релиза | — (подключается модулем) |
+| `home/xray.scm` | VPN-клиент: Xray в home-shepherd, SOCKS 127.0.0.1:10808 (входит в base) | — (подключается модулем) |
+| `systems/xray-tun.scm` | tun `xray0` + маршруты на выбранные адреса через этот SOCKS | — (подключается в `systems/<host>.scm`) |
+| `files/secrets/xray.yaml` | конфиг Xray-клиента (ключи, сервер), зашифрован sops | см. «VPN» |
 | `files/` | сырые dotfiles, подключаемые через `local-file` | — |
 | `files/secrets/*.yaml` | секреты, зашифрованные sops | `sops files/secrets/home.yaml` |
 | `.sops.yaml` | получатели: кто может расшифровать | `sops updatekeys` |
@@ -866,6 +870,76 @@ AI-пакеты (agent-shell, gptel, ellama, eca), рабочие модули
   `.eln`; нативно собран лишь встроенный Lisp самого Emacs). При первом
   интерактивном запуске Emacs нативно компилирует их в фоне в
   `~/.local/state/emacs/eln-cache` — первый запуск медленнее, это норма.
+
+## VPN (Xray)
+
+Как на хосте (`xray` + `net.sh` с tun2socks), только декларативно и без
+tun2socks — в Xray есть свой tun-вход:
+
+```
+программа → маршрут на xray0 → Xray-tun (система, root)
+          → SOCKS 127.0.0.1:10808 → Xray-клиент (home, пользователь)
+          → VLESS/REALITY → сервер
+```
+
+| Часть | Где | Секреты |
+|---|---|---|
+| Xray-клиент, SOCKS `127.0.0.1:10808` | `home/xray.scm`, входит в `make-home` — есть и в `programming`, и в `dyens` | конфиг — `files/secrets/xray.yaml` |
+| tun `xray0` + `ip route` на список адресов | `systems/xray-tun.scm`, подключается в `systems/<host>.scm` (сейчас — `t1.scm`) | нет |
+
+Через VPN идут только адреса из списка в `t1.scm` (сейчас подсеть
+Anthropic — для Claude Code — и адрес из `net.sh`). Остальное, включая
+трафик к самому VPN-серверу, — напрямую; поэтому петли нет. Не добавляйте
+в список адрес VPN-сервера и не заворачивайте `0.0.0.0/0` — потеряете
+сеть, а на облачной VM и ssh. Программы с поддержкой прокси могут
+ходить в SOCKS напрямую: `socks5://127.0.0.1:10808`.
+
+### Секрет с конфигом (один раз, на хосте)
+
+Конфиг клиента — обычный JSON Xray. В репозиторий он попадает только
+зашифрованным: ключ `xray.json` в `files/secrets/xray.yaml`. Открытый
+текст на диск не пишется; заодно `loglevel` понижается с `debug`, иначе
+лог сервиса растёт без конца:
+
+```sh
+cd ~/vms/guix-config
+{ echo 'xray.json: |'
+  sed 's/"loglevel": "debug"/"loglevel": "warning"/; s/^/  /' ~/vpn/dyvpn/timeweb.json
+} | guix shell sops -- sops encrypt --input-type yaml --output-type yaml \
+      --filename-override files/secrets/xray.yaml /dev/stdin > files/secrets/xray.yaml
+git add files/secrets/xray.yaml
+```
+
+Получатель берётся из `.sops.yaml` по пути файла (`--filename-override`),
+приватный ключ для шифрования не нужен. Поменять конфиг потом:
+`sops files/secrets/xray.yaml`.
+
+### Применить (на машине)
+
+```sh
+git pull
+sysrec      # систему: сервис xray-tun (root)
+homerec     # home: сервис xray (пользователь)
+```
+
+Проверка:
+
+```sh
+herd status xray                     # клиент, без sudo
+sudo herd status xray-tun            # tun
+ip route get 160.79.104.10           # … dev xray0
+curl -sI https://api.anthropic.com | head -1
+```
+
+Логи: `~/.local/state/xray.log` (клиент), `/var/log/xray-tun.log` (tun).
+
+### Пакет Xray
+
+`packages/xray.scm` — официальный статический бинарник релиза (как
+`claude-code`, но даже без patchelf). Обновить — версия и хеш, порядок
+в комментарии в файле. `guix download` может спотыкаться на редиректе
+GitHub на `release-assets.githubusercontent.com`: тогда `curl -LO`,
+сверить с `.dgst` релиза и `guix hash` / `guix download file://…`.
 
 ## Графика: startx, без display manager
 
