@@ -52,13 +52,18 @@ HOSTS — список (адрес . имя) для /etc/hosts."
          (start
           #~(lambda _
               ;; wg-quick обёрнут PATH'ом с ip/iptables, но без самого wg.
-              (zero? (system* #$(file-append coreutils "/bin/env")
+              ;; timeout: start выполняется в shepherd (PID 1) — он же запускает
+              ;; sshd на каждое соединение и login на консоли. Зависший
+              ;; wg-quick не должен держать его бесконечно.
+              (zero? (system* #$(file-append coreutils "/bin/timeout") "30"
+                              #$(file-append coreutils "/bin/env")
                               (string-append "PATH=" #$(file-append wireguard-tools "/bin"))
                               #$(file-append wireguard-tools "/bin/wg-quick")
                               "up" #$conf))))
          (stop
           #~(lambda _
-              (system* #$(file-append coreutils "/bin/env")
+              (system* #$(file-append coreutils "/bin/timeout") "30"
+                       #$(file-append coreutils "/bin/env")
                        (string-append "PATH=" #$(file-append wireguard-tools "/bin"))
                        #$(file-append wireguard-tools "/bin/wg-quick")
                        "down" #$conf)

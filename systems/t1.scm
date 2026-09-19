@@ -25,6 +25,12 @@
              (systems wg-quick)          ; WireGuard из конфига в sops
              (sops services sops))       ; системные секреты (канал sops-guix)
 
+;; WireGuard ruclaw. Выключен: после первого включения t1 потерял ssh
+;; (TCP есть, приветствия sshd нет — похоже, завис shepherd), причина не
+;; найдена. Включать отдельным шагом, с открытой запасной сессией и паролем
+;; для консоли — см. README, «WireGuard».
+(define %ruclaw-wg? #f)
+
 (operating-system
   (host-name "t1")
   (locale "en_US.utf8")
@@ -87,14 +93,16 @@
            (list (service sops-secrets-service-type (sops-service-configuration)))
            ;; Проектная сеть ruclaw. Тот же ключ и адрес (10.8.0.4), что у хоста:
            ;; одновременно туннель работает только на одной машине.
-           (wg-quick-services
-            "ruclaw" (local-file "../files/secrets/wg-ruclaw.yaml" "wg-ruclaw.yaml")
-            ;; DNS внутри VPN (172.31.32.1) не используем — только эти имена.
-            #:hosts '(("172.31.32.4"  . "docker-registry.k2int-ruclaw.loc")
-                      ("172.31.32.4"  . "nexus.k2int-ruclaw.loc")
-                      ("172.31.32.14" . "vault.k2int-ruclaw.loc")
-                      ("172.31.32.19" . "livekit.k2int-ruclaw.loc")
-                      ("172.31.32.19" . "keycloak.k2int-ruclaw.loc")))
+           (if %ruclaw-wg?
+               (wg-quick-services
+                "ruclaw" (local-file "../files/secrets/wg-ruclaw.yaml" "wg-ruclaw.yaml")
+                ;; DNS внутри VPN (172.31.32.1) не используем — только эти имена.
+                #:hosts '(("172.31.32.4"  . "docker-registry.k2int-ruclaw.loc")
+                          ("172.31.32.4"  . "nexus.k2int-ruclaw.loc")
+                          ("172.31.32.14" . "vault.k2int-ruclaw.loc")
+                          ("172.31.32.19" . "livekit.k2int-ruclaw.loc")
+                          ("172.31.32.19" . "keycloak.k2int-ruclaw.loc")))
+               '())
            (docker-static-services
             ;; Как в /etc/docker/daemon.json хоста (реестры проекта ruclaw).
             #:insecure-registries '("docker-registry.k2int-ruclaw.loc"
