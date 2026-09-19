@@ -6,10 +6,19 @@
 ;;; в отличие от claude-code даже patchelf не требуется. Версия зафиксирована
 ;;; хешем архива.
 ;;;
+;;; ВЕРСИЯ ПОДОБРАНА ПОД СЕТЬ, НЕ ОБНОВЛЯТЬ ВСЛЕПУЮ.
+;;; Начиная с 25.7.26 клиент REALITY в сети провайдера t1 опознаётся и
+;;; режется: первые 2-3 соединения проходят, дальше TCP до сервера
+;;; устанавливается, но данные не идут (Claude Code отваливается по
+;;; таймауту). 25.6.8 и старше работают. Проверено чередованием версий
+;;; с паузами: блокировка залипает на несколько минут, поэтому мерить
+;;; надо серией запросов и с перерывами — см. README, «VPN (Xray)».
+;;;
 ;;; Обновить:
-;;;   1. version ниже;
-;;;   2. сумма из Xray-linux-64.zip.dgst релиза (SHA2-256) — для сверки;
-;;;   3. guix download <url>  (или curl + guix hash, если guix download
+;;;   1. проверить новую версию по README (серия запросов через SOCKS);
+;;;   2. version ниже;
+;;;   3. сумма из Xray-linux-64.zip.dgst релиза (SHA2-256) — для сверки;
+;;;   4. guix download <url>  (или curl + guix hash, если guix download
 ;;;      спотыкается на редиректе GitHub) — вписать nix-base32 в sha256.
 
 (define-module (packages xray)
@@ -24,16 +33,16 @@
 (define-public xray
   (package
     (name "xray")
-    (version "26.3.27")
+    (version "25.6.8")
     (source
      (origin
        (method url-fetch)
        (uri (string-append "https://github.com/XTLS/Xray-core/releases/download/v"
                            version "/Xray-linux-64.zip"))
        ;; SHA2-256 из Xray-linux-64.zip.dgst релиза:
-       ;; 23cd9af937744d97776ee35ecad4972cf4b2109d1e0fe6be9930467608f7c8ae
+       ;; 51bcd3304fdbd64b58048b056da005fbaa6c83577fc351cae34024760e111e4b
        (sha256
-        (base32 "1bn8yw47ciihk6zfc3qykl8b5x1cjzaclpp3drvrfkbl6zwrmk93"))))
+        (base32 "0jqy2477c920wg553hvzay1nrapv0nh6s1cb0ic4pmnv9wqd7g2i"))))
     (build-system trivial-build-system)
     (arguments
      (list
