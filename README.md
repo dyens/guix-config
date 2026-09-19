@@ -687,6 +687,10 @@ One-shot:
 сервис отработает вхолостую, `~/.bashrc.local` не появится. Ключ —
 см. «Секреты».
 
+Если reconfigure добавил в home новые переменные окружения (так было
+с Emacs: `EMACSLOADPATH`), они появятся только после нового входа —
+выйти из tmux (`tmux kill-server`) и из ssh, зайти заново.
+
 Дальше пересобирать алиасами: `homerec` — home, `sysrec` — систему
 (`systems/$(hostname).scm`, то есть `t1.scm`).
 
@@ -787,6 +791,13 @@ AI-пакеты (agent-shell, gptel, ellama, eca), рабочие модули
   при загрузке `treesit.el`, а `treesit-language-available-p` (функция
   на C) без него отвечает nil. Поэтому `dy-treesit.el` начинается с
   `require`.
+- **После первого `homerec` с Emacs — перелогиниться, и из tmux тоже.**
+  Пакеты и грамматики Emacs находит по `EMACSLOADPATH` и
+  `TREE_SITTER_GRAMMAR_PATH` из home-профиля, а они выставляются при
+  входе. В старой сессии Emacs запустится без пакетов: `Cannot load evil`,
+  `Invalid completion style orderless`. Новое окно tmux не поможет — оно
+  берёт окружение у сервера tmux: `tmux kill-server`, выйти из ssh, зайти
+  заново. Проверка: `echo $EMACSLOADPATH` непустой.
 - **`~/.emacs.d` побеждает `~/.config/emacs`.** Если на машине есть
   `~/.emacs.d` (или `~/.emacs`), Emacs возьмёт его. На хосте — либо
   `--init-directory`, либо переименовать старый каталог.
