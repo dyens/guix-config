@@ -880,6 +880,11 @@ AI-пакеты (agent-shell, gptel, ellama, eca), рабочие модули
   VM пересоздана. Меры: пароль для консоли сразу после первого входа,
   запасная сессия при каждом `sysrec`, WireGuard — флагом и сначала
   вручную, у `wg-quick` в сервисе таймаут.
+- **`resolvconf: signature mismatch: /etc/resolv.conf`** — свежий openresolv
+  не трогает `resolv.conf`, написанный не им (его пишет dhcpcd), и
+  `wg-quick up` со строкой `DNS =` падает. Сервис `wg-ruclaw` перед up
+  отдаёт файл openresolv: серверы DHCP — записью `dhcp.orig`, затем
+  `resolvconf -u`. После `down` в `resolv.conf` снова серверы DHCP.
 - **`C-w C-h/j/k/l` в evil нет** — только буквенные `C-w h/j/k/l`.
   Контрольные варианты, как в Vim, добавлены в `dy-evil.el`.
 - **ESC в `emacs -nw` без kkp.** Протокол kitty (kkp) включается, только
