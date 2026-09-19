@@ -961,24 +961,27 @@ sudo ip link delete ruclaw        # на хосте, перед работой �
 ip -br link show ruclaw           # Device "ruclaw" does not exist
 ```
 
-Имена `*.k2int-ruclaw.loc` — статически в `/etc/hosts` (`#:hosts` в
-`t1.scm`), DNS внутри VPN не используется. Появилось новое имя — строка
-туда и `sysrec`.
+Имена `*.k2int-ruclaw.loc` разрешает DNS внутри VPN (`172.31.32.1`):
+строка `DNS =` в конфиге, wg-quick на время туннеля ставит его в
+`/etc/resolv.conf` через resolvconf. Так имена видны и контейнерам Docker —
+их DNS берёт серверы из `resolv.conf` хоста, а `/etc/hosts` хоста не видит
+(поэтому статических записей `#:hosts` мало).
 
 ### Секрет с конфигом (один раз, на хосте)
 
+Берётся оригинальный конфиг wg-quick целиком (`/etc/wireguard/ruclaw.conf`
+на хосте) — с `Address`, `DNS`, `MTU`, `Endpoint` по имени. `wg showconf`
+не годится: он отдаёт только то, что знает ядро (без `Address`, `DNS`, `MTU`).
+
 ```sh
 cd ~/vms/guix-config
-sudo wg show ruclaw allowed-ips      # убедиться: НЕТ 0.0.0.0/0 — иначе в туннель уйдёт и ssh
+sudo grep AllowedIPs /etc/wireguard/ruclaw.conf   # НЕ 0.0.0.0/0 — иначе в туннель уйдёт и ssh
 { echo 'ruclaw.conf: |'
-  sudo wg showconf ruclaw | sed '/^\[Interface\]/a Address = 10.8.0.4/32' | sed 's/^/  /'
+  sudo cat /etc/wireguard/ruclaw.conf | sed 's/^/  /'
 } | guix shell sops -- sops encrypt --input-type yaml --output-type yaml \
       --filename-override files/secrets/wg-ruclaw.yaml /dev/stdin > files/secrets/wg-ruclaw.yaml
 git add files/secrets/wg-ruclaw.yaml
 ```
-
-`wg showconf` не содержит адреса интерфейса — его вставляет `sed`. Строки
-`DNS =` в конфиге быть не должно: wg-quick переписал бы `/etc/resolv.conf`.
 
 ### На машине
 
@@ -1011,7 +1014,9 @@ sudo install -D -m 600 ~/.age-key /root/.config/sops/age/keys.txt
 sudo herd status sops-secrets wg-ruclaw
 sudo wg show ruclaw latest-handshakes     # недавнее время = сервер отвечает
 ping -c2 172.31.32.4
-curl -skI https://docker-registry.k2int-ruclaw.loc/v2/ | head -1   # или http://
+grep nameserver /etc/resolv.conf          # первым — 172.31.32.1
+curl -skI https://docker-registry.k2int-ruclaw.loc/v2/ | head -1   # HTTP/2 401
+docker run --rm busybox nslookup docker-registry.k2int-ruclaw.loc  # и из контейнера
 ```
 
 Опустить/поднять: `sudo herd stop wg-ruclaw` / `sudo herd start wg-ruclaw`.

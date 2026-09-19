@@ -94,14 +94,11 @@
            ;; Проектная сеть ruclaw. Тот же ключ и адрес (10.8.0.4), что у хоста:
            ;; одновременно туннель работает только на одной машине.
            (if %ruclaw-wg?
+               ;; Конфиг — оригинальный /etc/wireguard/ruclaw.conf хоста целиком:
+               ;; с DNS = 172.31.32.1, … — имена *.k2int-ruclaw.loc разрешает
+               ;; DNS внутри VPN (и для контейнеров тоже), /etc/hosts не нужен.
                (wg-quick-services
-                "ruclaw" (local-file "../files/secrets/wg-ruclaw.yaml" "wg-ruclaw.yaml")
-                ;; DNS внутри VPN (172.31.32.1) не используем — только эти имена.
-                #:hosts '(("172.31.32.4"  . "docker-registry.k2int-ruclaw.loc")
-                          ("172.31.32.4"  . "nexus.k2int-ruclaw.loc")
-                          ("172.31.32.14" . "vault.k2int-ruclaw.loc")
-                          ("172.31.32.19" . "livekit.k2int-ruclaw.loc")
-                          ("172.31.32.19" . "keycloak.k2int-ruclaw.loc")))
+                "ruclaw" (local-file "../files/secrets/wg-ruclaw.yaml" "wg-ruclaw.yaml"))
                '())
            (docker-static-services
             ;; Как в /etc/docker/daemon.json хоста (реестры проекта ruclaw).

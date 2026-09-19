@@ -9,9 +9,14 @@
 ;;; Имя интерфейса wg-quick берёт из имени файла: ключ "ruclaw.conf" →
 ;;; /run/secrets/ruclaw.conf → интерфейс ruclaw.
 ;;;
-;;; В конфиге НЕ должно быть строки DNS = … (wg-quick перепишет
-;;; /etc/resolv.conf) и AllowedIPs = 0.0.0.0/0 (весь трафик, включая ssh,
-;;; уйдёт в туннель). Имена внутри VPN — через /etc/hosts, параметр HOSTS.
+;;; Строка DNS = … в конфиге работает: wg-quick через resolvconf (openresolv
+;;; в его обёртке) ставит эти серверы в /etc/resolv.conf на время туннеля и
+;;; убирает при down. Так имена сети VPN разрешаются и на машине, и в
+;;; контейнерах Docker (их DNS берёт серверы из resolv.conf хоста, а
+;;; /etc/hosts хоста не видит). HOSTS — только если DNS в VPN нет.
+;;;
+;;; AllowedIPs = 0.0.0.0/0 недопустимо: весь трафик, включая ssh, уйдёт
+;;; в туннель.
 ;;;
 ;;; Системному sops нужен age-ключ root: /root/.config/sops/age/keys.txt
 ;;; (см. README, «WireGuard»).
