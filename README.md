@@ -128,8 +128,7 @@ startx
 | `home/docker.scm` | плагины `docker compose`/`buildx` в `~/.docker/cli-plugins` (входит в base) | — |
 | `home/ssh.scm` | `~/.ssh/config`, ключ GitLab из sops (входит в base) | — |
 | `files/secrets/ssh.yaml` | приватный ключ для GitLab CROC (`croc-gitlab`), зашифрован sops | см. «Ключ для GitLab» |
-| `systems/wg-quick.scm` | WireGuard: конфиг wg-quick из sops + сервис | — (подключается в `systems/<host>.scm`) |
-| `systems/net-mtu.scm` | MTU внешнего интерфейса (в облаке 1500 не проходит) | — (подключается в `systems/<host>.scm`) |
+| `systems/wg-quick.scm` | WireGuard: конфиг wg-quick из sops + сервис + `/etc/hosts` | — (подключается в `systems/<host>.scm`) |
 | `files/secrets/wg-ruclaw.yaml` | конфиг wg-quick проектной сети ruclaw (с ключом), зашифрован sops | см. «WireGuard» |
 | `home/xray.scm` | VPN-клиент: Xray в home-shepherd, SOCKS 127.0.0.1:10808 (входит в base) | — (подключается модулем) |
 | `systems/xray-tun.scm` | tun `xray0` + маршруты на выбранные адреса через этот SOCKS | — (подключается в `systems/<host>.scm`) |
@@ -917,14 +916,6 @@ AI-пакеты (agent-shell, gptel, ellama, eca), рабочие модули
   сервер: DPI опознаёт клиента REALITY новых версий. Симптом — первые
   запросы идут, потом всё виснет; с хоста (Xray 1.8.13) тот же сервер
   отвечает. Версия в `packages/xray.scm` подобрана проверкой, см. «VPN».
-- **MTU 1500 в облаке.** Сеть VM оверлейная, полноразмерный пакет не
-  проходит, а DHCP не присылает опцию 26 — интерфейс остаётся с 1500.
-  Короткие пакеты ходят, большие молча теряются: `ping` и DNS работают,
-  TCP до VPN-сервера в `ESTAB`, но данные висят в `Send-Q`, а Claude Code
-  отваливается по таймауту. Проверка: `sudo ip link set dev eth0 mtu 1400`
-  и повтор запроса. Лечение — `interface-mtu-service` в `t1.scm`
-  (`systems/net-mtu.scm`); `dhcpcd-service-type` такого поля не имеет.
-  На прежней VM (другая сеть провайдера) этого не было.
 - **`resolvconf: signature mismatch: /etc/resolv.conf`** — свежий openresolv
   не трогает `resolv.conf`, написанный не им (его пишет dhcpcd), и
   `wg-quick up` со строкой `DNS =` падает. Сервис `wg-ruclaw` перед up
