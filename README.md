@@ -118,6 +118,9 @@ startx
 | `home/base.scm` | общая часть home: vim, git, tmux, Claude Code, bash, секреты | — (подключается модулем) |
 | `home/programming.scm` | home для программирования без графики (облачные VM) | `guix home reconfigure` |
 | `home/dyens.scm` | home с графикой: base + i3, шрифты, startx | `guix home reconfigure` |
+| `home/emacs.scm` | Emacs: пакеты из Guix + конфиг `files/emacs` (входит в base) | — (подключается модулем) |
+| `home/emacs-manifest.scm` | тот же Emacs без guix home — попробовать на любой машине | `guix shell -m` |
+| `files/emacs/` | конфиг Emacs → `~/.config/emacs` | — |
 | `packages/claude-code.scm` | проприетарный бинарник, переупакованный под Guix | — (подключается модулем) |
 | `files/` | сырые dotfiles, подключаемые через `local-file` | — |
 | `files/secrets/*.yaml` | секреты, зашифрованные sops | `sops files/secrets/home.yaml` |
@@ -712,6 +715,85 @@ herd restart home-sops-secrets
 Готово: система (`t1.scm`), пиннутый Guix, home для программирования,
 секреты. Дальнейшие правки — в репозитории, затем `git pull` на VM и
 `sysrec` / `homerec`.
+
+## Emacs
+
+Emacs целиком из Guix: `emacs-next` (31), все пакеты и грамматики
+tree-sitter — в `home/emacs.scm`, конфиг — в `files/emacs/`. package.el,
+MELPA и straight не используются, `:ensure` в `use-package` нет.
+Входит в `home/base.scm`, то есть есть и на облачной VM, и на локальной.
+
+```
+files/emacs/
+  early-init.el     пути: конфиг read-only, состояние — в ~/.local/state/emacs
+  init.el           подключает модули по порядку
+  lisp/dy-*.el      по модулю на тему: evil, completion, python, go, rust, org, …
+  snippets/         yasnippet
+```
+
+Куда что пишется:
+
+| Что | Где |
+|---|---|
+| конфиг (`init.el`, `lisp/`, `snippets/`) | `~/.config/emacs` — симлинки в стор, **read-only** |
+| eln-cache, бэкапы, история, `custom.el`, transient, project-list | `~/.local/state/emacs` (`user-emacs-directory`) |
+
+Отсюда правило: конфиг и сниппеты правятся в репозитории, затем
+`homerec`. Customize (`M-x customize`) пишет в `~/.local/state/emacs/custom.el`
+— это состояние машины, в репозиторий не попадает.
+
+### Добавить пакет
+
+1. Строка в `%emacs-packages` (`home/emacs.scm`); имя —
+   `guix search emacs-<имя>`.
+2. `use-package` без `:ensure` в подходящем `files/emacs/lisp/dy-*.el`.
+3. `homerec`.
+
+Если пакета нет в Guix — либо маленькая замена в конфиге (так сделаны
+pytest, gotest, ruff-format, clipetty — см. комментарии в модулях), либо
+упаковать его в `packages/`, как `claude-code`.
+
+### Попробовать без guix home
+
+На машине со своим `~/.emacs.d` (например, на хосте):
+
+```sh
+guix shell -m home/emacs-manifest.scm -- emacs --init-directory=files/emacs
+```
+
+Состояние всё равно уйдёт в `~/.local/state/emacs`, старый `~/.emacs.d`
+не тронут. Проверить конфиг без окна:
+
+```sh
+guix shell -m home/emacs-manifest.scm -- emacs --batch --init-directory=files/emacs \
+  -l files/emacs/early-init.el -l files/emacs/init.el
+```
+
+### Что осталось от старого `~/.emacs.d` и что нет
+
+Перенесены: evil со всеми сочетаниями на `SPC`, vertico/orderless/
+consult/embark/corfu, magit (с заготовкой коммита из имени ветки),
+eglot, Python (docstring, pytest, ruff, pyvenv), Go, Rust, org
+(agenda, capture, помодоро), denote, vterm, kkp и OSC 52 для `-nw`.
+
+Не перенесены: telega, mu4e, elfeed, erc, forge, org-roam, dape,
+AI-пакеты (agent-shell, gptel, ellama, eca), рабочие модули
+(`dy-http`, `dy-kaas`, `dy-t1`, …). Вернуть — см. «Добавить пакет».
+
+### Грабли
+
+- **Грамматики Guix не видны до `(require 'treesit)`.** Путь из
+  `TREE_SITTER_GRAMMAR_PATH` попадает в `treesit-extra-load-path` только
+  при загрузке `treesit.el`, а `treesit-language-available-p` (функция
+  на C) без него отвечает nil. Поэтому `dy-treesit.el` начинается с
+  `require`.
+- **`~/.emacs.d` побеждает `~/.config/emacs`.** Если на машине есть
+  `~/.emacs.d` (или `~/.emacs`), Emacs возьмёт его. На хосте — либо
+  `--init-directory`, либо переименовать старый каталог.
+- **Пакеты Guix приходят только байт-компилированными** (`.elc`, без
+  `.eln`; нативно собран лишь встроенный Lisp самого Emacs). При первом
+  интерактивном запуске Emacs нативно компилирует их в фоне в
+  `~/.local/state/emacs/eln-cache` — первый запуск медленнее, это норма.
 
 ## Графика: startx, без display manager
 

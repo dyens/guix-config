@@ -1,0 +1,24 @@
+# key: ubuntu
+# name: ubuntu
+# expand-env: ((yas-indent-line 'fixed))
+# --
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kapustin
+--- 
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kapustin
+  namespace: kapustin
+
+spec:
+  terminationGracePeriodSeconds: 0
+  containers:
+  - name: ubuntu
+    image: ubuntu:latest
+    command: ['sleep', 'infinity']
+--- 

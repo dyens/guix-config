@@ -1,0 +1,17 @@
+# key: pvc
+# name: pvc
+# expand-env: ((yas-indent-line 'fixed))
+# --
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kapustin
+  namespace: kapustin
+spec:
+  storageClassName: high3-ma
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+--- 

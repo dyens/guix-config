@@ -1,0 +1,53 @@
+# -*- mode: snippet -*-
+# name: controller-test
+# key: controller-test
+# --
+
+package controller_test
+
+import (
+	"testing"
+	"universeui/internal/constants"
+	"universeui/internal/controller"
+
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/suite"
+)
+
+type ${0:Controller}TestSuite struct {
+	suite.Suite
+	app        *controller.MockApp
+	view       *controller.MockView
+	$1View   *controller.Mock$1View
+	controller *controller.$1
+}
+
+func TestTaskTestSuite(t *testing.T) {
+	suite.Run(t, new(TaskTestSuite))
+}
+
+func (s *TaskTestSuite) SetupTest() {
+	s.app = controller.NewMockApp(s.T())
+	s.view = controller.NewMockView(s.T())
+	s.taskView = controller.NewMockTaskView(s.T())
+	s.view.On("Task").Return(s.taskView).Maybe()
+	s.app.EXPECT().View().Return(s.view).Maybe()
+	s.view.EXPECT().QueueUpdateDraw(mock.AnythingOfType("func()")).Run(
+		func(updatefn func()) {
+			updatefn()
+		},
+	).Maybe()
+
+	s.controller = controller.NewTask(s.app)
+}
+
+func (s *TaskTestSuite) TestGoToTasks() {
+	s.view.EXPECT().SwitchToPage(constants.TaskPageName).Once()
+	s.controller.GoToTasks()
+}
+
+func (s *TaskTestSuite) TestShow() {
+	s.view.EXPECT().SwitchToPage(constants.TaskPageName).Once()
+	s.controller.Show()
+}
+

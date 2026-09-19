@@ -1,0 +1,7 @@
+# -*- mode: snippet -*-
+# name: def method
+# key: m
+# --
+
+def ${1:funcname}(self${2:, $3})${4: -> None}:
+    ${0:pass}

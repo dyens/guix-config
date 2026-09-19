@@ -1,0 +1,31 @@
+# key: pod-with-pvc
+# name: pod-with-pvc
+# expand-env: ((yas-indent-line 'fixed))
+# --
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kapustin
+  name: kapustin
+  spec:
+    resources:
+      requests:
+        storage: 1Gi
+--- 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kapustin
+  name: kapustin
+  volumes:
+    - name: kapustin
+      persistentVolumeClaim:
+        claimName: kapustin
+  spec:
+    containers:
+      - name: ubuntu
+        image: ubuntu:latest
+      volumeMounts:
+        - mountPath: "/tmp"
+          name: kapustin
+--- 

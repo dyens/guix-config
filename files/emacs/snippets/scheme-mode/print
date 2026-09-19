@@ -1,0 +1,6 @@
+# -*- mode: snippet -*-
+# name: print
+# key: p
+# --
+
+(format #t "~A\n" $0)

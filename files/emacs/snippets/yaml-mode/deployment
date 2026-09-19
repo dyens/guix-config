@@ -1,0 +1,32 @@
+# -*- mode: snippet -*-
+# name: deployment
+# key: dep
+# expand-env: ((yas-indent-line 'fixed))
+# --
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bad-deployment
+  namespace: kapustin
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bad-deployment
+  template:
+    metadata:
+      labels:
+        app: bad-deployment
+    spec:
+      containers:
+      - name: ubuntu
+        image: ubuntu:latest
+        resources:
+          requests:
+            alala/asdf: "64Mi"
+          limits:
+            alala/asdf: "64Mi"
+---

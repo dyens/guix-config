@@ -1,0 +1,6 @@
+# -*- mode: snippet -*-
+# name: fer
+# key: fer
+# --
+
+fmt.Errorf("%s: %w", op, err)

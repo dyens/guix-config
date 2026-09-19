@@ -1,0 +1,13 @@
+# -*- mode: snippet -*-
+# name: cpu-profile 
+# key: cprofile
+# --
+
+// Start CPU profiling
+f, err := os.Create("cpu.pprof")
+if err != nil {
+  panic(err)
+}
+pprof.StartCPUProfile(f)
+defer pprof.StopCPUProfile()
+

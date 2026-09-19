@@ -1,7 +1,7 @@
 ;;; Общая часть домашнего окружения: всё, что нужно для программирования
 ;;; на любой машине, с графикой или без.
 ;;;
-;;; Здесь: редактор, git, tmux, Claude Code, bash, секреты. Графика (i3,
+;;; Здесь: vim, Emacs (home/emacs.scm), git, tmux, Claude Code, bash, секреты. Графика (i3,
 ;;; шрифты, startx) сюда НЕ входит — её добавляет home/dyens.scm через
 ;;; #:extra-packages / #:extra-services.
 ;;;
@@ -22,6 +22,7 @@
   #:use-module (sops secrets)                ; sops-secret      — канал sops-guix
   #:use-module (sops home services sops)     ; home-sops-secrets-service-type
   #:use-module (packages claude-code)        ; см. packages/claude-code.scm
+  #:use-module (home emacs)                  ; Emacs и его конфиг
   #:export (make-home))
 
 ;; Зашифрованные секреты. В стор уезжает только шифротекст, открытый
@@ -67,7 +68,7 @@
                     (extra-services '()))
   "Собрать <home-environment> для программирования плюс EXTRA-*."
   (home-environment
-   (packages (append %programming-packages extra-packages))
+   (packages (append %programming-packages %emacs-packages extra-packages))
 
    (services
     (append
@@ -105,4 +106,5 @@
                       home-xdg-configuration-files-service-type
                       ;; Пути относительно ~/.config, без префикса .config/
                       `(("tmux/tmux.conf" ,(local-file "../files/tmux.conf")))))
+     %emacs-services
      extra-services))))

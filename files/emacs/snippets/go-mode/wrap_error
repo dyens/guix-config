@@ -1,0 +1,6 @@
+# -*- mode: snippet -*-
+# name: Wrap error
+# key: wer
+# --
+
+fmt.Errorf("$0:%w", err)

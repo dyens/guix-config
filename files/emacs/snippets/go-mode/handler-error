@@ -1,0 +1,7 @@
+# -*- mode: snippet -*-
+# name: handler-error 
+# key: her
+# --
+if err != nil {
+	return fmt.Errorf("$0:%w", err)
+}

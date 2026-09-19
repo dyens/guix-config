@@ -1,0 +1,28 @@
+# key: suite-test
+# name: suite-test
+# --
+import (
+	"github.com/stretchr/testify/suite"
+	"github.com/stretchr/testify/assert"
+
+	"testing"
+)
+
+type TestSuite struct {
+	suite.Suite
+}
+
+func (suite *TestSuite) SetupTest() {
+}
+
+func (suite *TestSuite) TearDownSuite() {
+}
+
+func TestTestSuite(t *testing.T) {
+	suite.Run(t, new(TestSuite))
+}
+
+func (suite *TestSuite) TestExample() {
+	suite.Equal(5, 5)
+	assert.Equal(suite.T(), 5, 5)
+}

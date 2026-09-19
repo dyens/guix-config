@@ -1,0 +1,7 @@
+# -*- mode: snippet -*-
+# name: panic-debug
+# key: pad
+# --
+
+fmt.Printf("DEBUG: %+v\n", $1)
+panic("DEBUG PANIC")

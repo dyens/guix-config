@@ -1,0 +1,40 @@
+# -*- mode: snippet -*-
+# name: tf-method
+# key: tfm
+# --
+type ${1:Method}Result struct {
+	gophercloud.Result
+}
+
+func (r $1Result) Extract() (string, error) {
+	var resp struct {
+		field string \`json:"field"\`
+	}
+
+	err := r.ExtractInto(&resp)
+	if err != nil {
+		return "", err
+	}
+
+	return resp.field, nil
+}
+
+func (c *TFClient) $1(ctx context.Context) (result $1Result) {
+        ${0}
+	url := c.ServiceURL("method")
+	params := struct {
+		Typename string   \`json:"type"\`
+		FQName   []string \`json:"fq_name"\`
+	}{
+		typename,
+		fqname,
+	}
+	reqBody, err := gophercloud.BuildRequestBody(params, "")
+	if err != nil {
+		result.Err = err
+	}
+
+	response, err := c.Post(ctx, url, reqBody, &result.Body, nil)
+	_, result.Header, result.Err = gophercloud.ParseResponse(response, err)
+	return
+}

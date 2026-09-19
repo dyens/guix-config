@@ -1,0 +1,6 @@
+# -*- mode: snippet -*-
+# name: tp 
+# key: tp
+# --
+
+t.Logf("DEBUG: %s", fmt.Sprintf("%+v\n", $0))

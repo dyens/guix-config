@@ -41,7 +41,8 @@
         ;; Шрифты: fontconfig подхватывает их из домашнего профиля,
         ;; в систему ставить не нужно.
         "font-dejavu"
-        "font-google-noto"))
+        "font-google-noto"
+        "font-aporetic"))               ; шрифт Emacs, см. files/emacs/lisp/dy-gui.el
 
  #:extra-services
  (list

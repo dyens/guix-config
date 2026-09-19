@@ -1,0 +1,21 @@
+# key: pod
+# name: pod
+# expand-env: ((yas-indent-line 'fixed))
+# --
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kapustin
+  namespace: kapustin
+spec:
+  volumes:
+    - name: kapustin
+      persistentVolumeClaim:
+        claimName: kapustin
+  containers:
+    - name: ubuntu
+      image: ubuntu:latest
+      volumeMounts:
+        - mountPath: "/tmp"
+          name: kapustin
+--- 

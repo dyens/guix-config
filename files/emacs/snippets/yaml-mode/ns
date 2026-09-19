@@ -1,0 +1,10 @@
+# key: ns
+# name: ns
+# expand-env: ((yas-indent-line 'fixed))
+# --
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kapustin
+--- 
