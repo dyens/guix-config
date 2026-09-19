@@ -368,8 +368,9 @@ cat ~/.ssh/id_ed25519.pub > files/keys/dyens-$(hostname).pub
 2. при старте home-shepherd (первый логин после загрузки) на каждый
    `sops-secret` запускается одноразовый сервис: `sops -d --extract`
    пишет значение в tmpfs `/run/user/$UID/secrets/<ключ>` с правами 400;
-3. поле `path` создаёт симлинк на него, например
-   `~/.bashrc.local -> /run/user/1000/secrets/bashrc.local`.
+3. оттуда его и читают: `files/bashrc` — `bashrc.local`, Xray —
+   `xray.json`. Поле `path` (симлинк из домашнего каталога) не
+   используется — см. «Нюансы».
 
 Открытый текст на диск не пишется. Версия секретов едет вместе
 с коммитом конфига: `guix home roll-back` и `time-machine` берут ровно те
@@ -406,8 +407,8 @@ guix shell age -- age-keygen -o ~/.age-key
 Новый секрет — ключ в `home.yaml` плюс строка в `home/base.scm`:
 
 ```scheme
-(list (home-secret "bashrc.local" ".bashrc.local")
-      (home-secret "ssh-config"   ".ssh/config"))
+(list (home-secret "bashrc.local")
+      (home-secret "ssh-config"))   ; → $XDG_RUNTIME_DIR/secrets/ssh-config
 ```
 
 Первый раз на новой VM:
@@ -424,14 +425,14 @@ homerec
 
 # проверка
 herd status home-sops-secrets
-ls -l ~/.bashrc.local /run/user/$(id -u)/secrets/
+ls -l /run/user/$(id -u)/secrets/
 ```
 
 Ключ — до `homerec`. Если сервис секрета всё же упал (ключ скопирован
 позже, сменили значение, а файл старый), перезапустите его:
 `herd restart home-sops-secret-<ключ>`, например
 `herd restart home-sops-secret-bashrc.local`. Переменные из
-`~/.bashrc.local` видны в новом шелле.
+`bashrc.local` видны в новом шелле.
 
 Нюансы:
 
@@ -439,9 +440,14 @@ ls -l ~/.bashrc.local /run/user/$(id -u)/secrets/
   перезагрузки tmpfs пуст, пока home-shepherd не стартует. Самый первый
   шелл может успеть раньше расшифровки — поэтому `files/bashrc` проверяет
   `-r` и молча пропускает висячий симлинк.
-- **Если по пути `path` уже лежит обычный файл** (например `~/.bashrc.local`
-  от старой схемы с `guix-secrets`), симлинк не создастся. Удалите файл
-  руками один раз.
+- **Поле `path` у `sops-secret` не используем.** sops-guix создаёт
+  симлинк только при первом старте: при повторном (любой `homerec`,
+  перезапуск home-shepherd) он пересоздаёт секрет, а старую ссылку не
+  убирает и падает с `symlink: File exists`, а если нет родительского
+  каталога — с `No such file or directory`. Упавший секрет валит общий
+  `home-sops-secrets`, а с ним всё, что от него зависит (Xray). Поэтому
+  секреты читаются прямо из `$XDG_RUNTIME_DIR/secrets/<ключ>`. Оставшийся
+  от старой схемы `~/.bashrc.local`-симлинк можно удалить.
 - **Имена ключей yaml видны открытым текстом**, зашифрованы только значения.
   Называйте ключи так, чтобы это не было проблемой в публичном репозитории.
 
@@ -449,9 +455,9 @@ ls -l ~/.bashrc.local /run/user/$(id -u)/secrets/
 
 - приватные ключи, пароли, токены через `local-file`;
 - секреты в `files/bashrc` — он тоже уезжает в стор. Для переменных
-  окружения держите `~/.bashrc.local`: он не управляется Guix Home,
-  подключается последней строкой из `files/bashrc`, а на машину приезжает
-  из `files/secrets/home.yaml` через sops.
+  окружения — секрет `bashrc.local` в `files/secrets/home.yaml`: его
+  подключает последний блок `files/bashrc` (на чужом дистрибутиве —
+  обычный файл `~/.bashrc.local`).
 
 ### На чужом дистрибутиве (Fedora, Ubuntu)
 
@@ -688,7 +694,8 @@ One-shot:
 ```
 
 `One-shot` здесь не значит «расшифровалось»: без age-ключа на машине
-сервис отработает вхолостую, `~/.bashrc.local` не появится. Ключ —
+сервис отработает вхолостую, `/run/user/1000/secrets/bashrc.local` не
+появится. Ключ —
 см. «Секреты».
 
 Если reconfigure добавил в home новые переменные окружения (так было
@@ -728,11 +735,8 @@ Host t1
 
 ```sh
 herd restart home-sops-secrets
-[ -r ~/.bashrc.local ] && echo DECRYPTED
+ls -l /run/user/$(id -u)/secrets/     # bashrc.local, xray.json
 ```
-
-Симлинк `~/.bashrc.local` появляется и без расшифровки — проверять
-именно `-r`, то есть что за ним есть файл.
 
 Готово: система (`t1.scm`), пиннутый Guix, home для программирования,
 секреты. Дальнейшие правки — в репозитории, затем `git pull` на VM и

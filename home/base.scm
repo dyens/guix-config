@@ -32,13 +32,16 @@
 (define home.yaml
   (local-file "../files/secrets/home.yaml" "home.yaml"))
 
-(define (home-secret key target)
-  "Секрет KEY из home.yaml, симлинком в ~/TARGET."
+;; Без поля `path': симлинк sops-guix создаёт только при первом старте,
+;; а при повторном (любой homerec) падает на уже существующей ссылке —
+;; и тянет за собой все секреты. Читаем прямо из
+;; $XDG_RUNTIME_DIR/secrets/<ключ> (см. files/bashrc, home/xray.scm).
+(define (home-secret key)
+  "Секрет KEY из home.yaml → $XDG_RUNTIME_DIR/secrets/KEY."
   (sops-secret
    (key (list key))
    (file home.yaml)
-   (permissions #o400)
-   (path (string-append (getenv "HOME") "/" target))))
+   (permissions #o400)))
 
 (define %programming-packages
   (cons
@@ -101,7 +104,7 @@
                (home-sops-service-configuration
                 (age-key-file #~(string-append (getenv "HOME") "/.age-key"))
                 (secrets
-                 (list (home-secret "bashrc.local" ".bashrc.local")))))
+                 (list (home-secret "bashrc.local")))))
 
       (simple-service 'dotfiles
                       home-xdg-configuration-files-service-type

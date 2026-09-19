@@ -26,10 +26,17 @@ export DISABLE_UPDATES=1
 # Этот файл (files/bashrc) уезжает в /gnu/store, который читается любым
 # пользователем машины, и лежит в git. Токенам и ключам здесь не место.
 #
-# ~/.bashrc.local — симлинк в tmpfs /run/user/$UID/secrets, его создаёт
-# home-sops-secrets из files/secrets/home.yaml при старте home-shepherd.
-# Самый первый шелл после загрузки может успеть раньше расшифровки:
-# симлинк ещё висячий, -r ложно, файл просто пропускается.
+# Под Guix Home секрет bashrc.local расшифровывает home-sops-secrets из
+# files/secrets/home.yaml в tmpfs $XDG_RUNTIME_DIR/secrets при старте
+# home-shepherd. Самый первый шелл после загрузки может успеть раньше
+# расшифровки — тогда -r ложно и файл просто пропускается.
+# На чужом дистрибутиве без Guix Home — обычный файл ~/.bashrc.local.
 #
 #   guix shell sops -- sops files/secrets/home.yaml    # добавить токен
-[ -r "$HOME/.bashrc.local" ] && . "$HOME/.bashrc.local"
+_secret="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/secrets/bashrc.local"
+if [ -r "$_secret" ]; then
+    . "$_secret"
+elif [ -r "$HOME/.bashrc.local" ]; then
+    . "$HOME/.bashrc.local"
+fi
+unset _secret
