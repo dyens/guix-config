@@ -25,11 +25,11 @@
              (systems wg-quick)          ; WireGuard из конфига в sops
              (sops services sops))       ; системные секреты (канал sops-guix)
 
-;; WireGuard ruclaw. Выключен: после первого включения t1 потерял ssh
-;; (TCP есть, приветствия sshd нет — похоже, завис shepherd), причина не
-;; найдена. Включать отдельным шагом, с открытой запасной сессией и паролем
-;; для консоли — см. README, «WireGuard».
-(define %ruclaw-wg? #f)
+;; WireGuard ruclaw. После первого включения t1 потерял ssh (TCP есть,
+;; приветствия sshd нет — похоже, завис shepherd), причина не найдена.
+;; Вручную (wg-quick мимо shepherd) туннель ssh не ломает; у сервиса теперь
+;; таймаут. Если снова что-то не так — #f здесь и sysrec (см. README, «WireGuard»).
+(define %ruclaw-wg? #t)
 
 (operating-system
   (host-name "t1")
