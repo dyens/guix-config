@@ -9,9 +9,8 @@
 ;;;
 ;;; Сервер для разработки: сеть, ssh, sudo, git, elogind, Docker, VPN
 ;;; (Xray-tun для Anthropic, WireGuard ruclaw). Модули репозитория
-;;; подключаются через add-to-load-path ниже; нужен канал sops-guix
-;;; (системные секреты) — `guix pull -C channels.scm`, либо `-L` на его
-;;; модули. Первичный образ (README, «Облачная VM») собирался ещё без них.
+;;; подключаются через add-to-load-path ниже. Секретов у системы нет: их
+;;; расшифровывает home-sops пользователя (конфиги Xray и WireGuard).
 ;;;
 ;;; Как собрать образ и поднять VM — README, раздел «Облачная VM».
 
@@ -22,8 +21,7 @@
              (systems docker)            ; Docker Engine (статический)
              (gnu services networking)   ; dhcpcd, ntp
              (gnu services ssh)          ; openssh-service-type
-             (systems wg-quick)          ; WireGuard из конфига в sops
-             (sops services sops))       ; системные секреты (канал sops-guix)
+             (systems wg-quick))         ; WireGuard из конфига в sops (home)
 
 ;; WireGuard ruclaw. После первого включения t1 потерял ssh (TCP есть,
 ;; приветствия sshd нет — похоже, завис shepherd), причина не найдена.
@@ -88,17 +86,15 @@
                  (xray-tun-service
                   '("160.79.104.0/23"      ; Anthropic (AS399358): api.anthropic.com — Claude Code
                     "146.59.209.152")))    ; из net.sh хоста (OVH)
-           ;; Системные секреты sops: расшифровка в /run/secrets при загрузке.
-           ;; Ключ root — /root/.config/sops/age/keys.txt (см. README, «WireGuard»).
-           (list (service sops-secrets-service-type (sops-service-configuration)))
            ;; Проектная сеть ruclaw. Тот же ключ и адрес (10.8.0.4), что у хоста:
            ;; одновременно туннель работает только на одной машине.
            (if %ruclaw-wg?
                ;; Конфиг — оригинальный /etc/wireguard/ruclaw.conf хоста целиком:
                ;; с DNS = 172.31.32.1, … — имена *.k2int-ruclaw.loc разрешает
                ;; DNS внутри VPN (и для контейнеров тоже), /etc/hosts не нужен.
-               (wg-quick-services
-                "ruclaw" (local-file "../files/secrets/wg-ruclaw.yaml" "wg-ruclaw.yaml"))
+               ;; Секрет расшифровывает home-sops (home/wireguard.scm), туннель
+               ;; поднимается после входа dyens.
+               (wg-quick-services "ruclaw" #:user "dyens")
                '())
            (docker-static-services
             ;; Как в /etc/docker/daemon.json хоста (реестры проекта ruclaw).

@@ -25,6 +25,7 @@
   #:use-module (home emacs)                  ; Emacs и его конфиг
   #:use-module (home xray)                   ; VPN-клиент
   #:use-module (home docker)                 ; плагины docker compose/buildx
+  #:use-module (home wireguard)              ; секреты WireGuard (туннель — в системе)
   #:export (make-home))
 
 ;; Зашифрованные секреты. В стор уезжает только шифротекст, открытый
@@ -114,4 +115,5 @@
      %emacs-services
      %xray-services
      %docker-cli-services
+     %wireguard-secrets
      extra-services))))

@@ -941,12 +941,18 @@ docker run --rm hello-world
 
 Проектная сеть ruclaw (`172.31.0.0/20`, `.16.0/20`, `.32.0/20`: реестр
 образов, nexus, vault, keycloak, livekit) — WireGuard. На хосте это
-соединение NetworkManager, на t1 — `systems/wg-quick.scm`: весь конфиг
-wg-quick (с приватным ключом) лежит в sops, системный sops-guix
-расшифровывает его при загрузке в `/run/secrets/ruclaw.conf`, сервис
-`wg-ruclaw` делает `wg-quick up`. Штатный `wireguard-service-type` не
-подошёл: пиры описываются в конфиге системы, адрес сервера и ключи ушли бы
-в стор и git.
+соединение NetworkManager, на t1 — так же, как Xray:
+
+| Часть | Где |
+|---|---|
+| конфиг wg-quick (с ключом) — секрет `ruclaw.conf` | `home/wireguard.scm` (входит в `make-home`): home-sops расшифровывает его `~/.age-key` в `/run/user/<uid>/secrets/ruclaw.conf` |
+| туннель | `systems/wg-quick.scm` → сервис `wg-ruclaw` (root): отдельный процесс ждёт конфиг, делает `wg-quick up`, по `herd stop` — `down` |
+
+Ключа у root и системного sops нет. Туннель поднимается после входа
+пользователя — как и Xray. Штатный `wireguard-service-type` не подошёл:
+пиры описываются в конфиге системы, адрес сервера и ключи ушли бы в стор
+и git. `wg-quick` выполняет отдельный процесс, а не сам shepherd (PID 1):
+тот же shepherd запускает sshd — зависший wg-quick не должен его держать.
 
 **Ключ и адрес — те же, что у хоста** (`10.8.0.4`). Сервер WireGuard
 считает их одним клиентом и шлёт ответы туда, откуда пришёл последний
@@ -985,12 +991,6 @@ git add files/secrets/wg-ruclaw.yaml
 
 ### На машине
 
-Системному sops нужен age-ключ root (один раз):
-
-```sh
-sudo install -D -m 600 ~/.age-key /root/.config/sops/age/keys.txt
-```
-
 **Включать осторожно** (однажды после включения t1 потерял ssh, причина не
 найдена — см. «Грабли»). WireGuard выключен флагом `%ruclaw-wg?` в
 `t1.scm`. Порядок:
@@ -1011,8 +1011,10 @@ sudo install -D -m 600 ~/.age-key /root/.config/sops/age/keys.txt
 Проверка:
 
 ```sh
-sudo herd status sops-secrets wg-ruclaw
-sudo wg show ruclaw latest-handshakes     # недавнее время = сервер отвечает
+ls -l /run/user/$(id -u)/secrets/ruclaw.conf   # расшифровал home-sops
+sudo herd status wg-ruclaw                 # running
+sudo tail /var/log/wg-ruclaw.log           # waiting for … / tunnel is up
+sudo $(guix build wireguard-tools)/bin/wg show ruclaw latest-handshakes
 ping -c2 172.31.32.4
 grep nameserver /etc/resolv.conf          # первым — 172.31.32.1
 curl -skI https://docker-registry.k2int-ruclaw.loc/v2/ | head -1   # HTTP/2 401
