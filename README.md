@@ -670,12 +670,48 @@ guix home reconfigure ~/guix-config/home/programming.scm
 сессию уже через elogind) и повторным `guix home reconfigure`.
 
 Проверка после входа: `echo $XDG_RUNTIME_DIR` → `/run/user/1000`,
-`herd status` (без sudo) показывает домашние сервисы.
+`herd status` (без sudo) показывает домашние сервисы:
+
+```
+Started:
+ + root
+One-shot:
+ * home-sops-secret-bashrc.local
+ * home-sops-secrets
+```
+
+`One-shot` здесь не значит «расшифровалось»: без age-ключа на машине
+сервис отработает вхолостую, `~/.bashrc.local` не появится. Ключ —
+см. «Секреты».
 
 Дальше пересобирать алиасами: `homerec` — home, `sysrec` — систему
 (`systems/$(hostname).scm`, то есть `t1.scm`).
 
-<!-- TODO: дописывается по ходу установки t1 -->
+Claude Code в облаке зависит от CPU, который выдал flavor: без AVX2 он
+не падает, а виснет (см. «Грабли»). Проверить сразу:
+
+```sh
+grep -c avx2 /proc/cpuinfo     # должно быть > 0
+claude --version
+```
+
+### 9. Секреты (на VM)
+
+Положить age-ключ (как — раздел «Секреты»: скопировать `~/.age-key` или
+завести ключ машины и `sops updatekeys`) и перезапустить сервис — при
+загрузке он уже отработал без ключа и сам не повторит:
+
+```sh
+herd restart home-sops-secrets
+[ -r ~/.bashrc.local ] && echo DECRYPTED
+```
+
+Симлинк `~/.bashrc.local` появляется и без расшифровки — проверять
+именно `-r`, то есть что за ним есть файл.
+
+Готово: система (`t1.scm`), пиннутый Guix, home для программирования,
+секреты. Дальнейшие правки — в репозитории, затем `git pull` на VM и
+`sysrec` / `homerec`.
 
 ## Графика: startx, без display manager
 
