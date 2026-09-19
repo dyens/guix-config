@@ -75,6 +75,10 @@
                           (openssh-configuration
                            (password-authentication? #f)
                            (permit-root-login #f)
+                           ;; COLORTERM=truecolor от клиента (в ~/.ssh/config:
+                           ;; SendEnv COLORTERM). ssh по умолчанию его не
+                           ;; передаёт, и emacs -nw рисует тему в 256 цветах.
+                           (accepted-environment '("COLORTERM"))
                            (authorized-keys
                             `(("dyens" ,(local-file "../files/keys/dyens-t1-cloud.pub")))))))
            (modify-services %base-services

@@ -702,6 +702,20 @@ grep -c avx2 /proc/cpuinfo     # должно быть > 0
 claude --version
 ```
 
+Цвета в терминале. Emacs включает 24-битный цвет по `COLORTERM=truecolor`,
+а ssh эту переменную по умолчанию не передаёт: в tmux (он выставляет её
+сам) тема нормальная, по голому ssh — огрублённая до 256 цветов. Сервер
+её принимает (`accepted-environment` в `t1.scm`), клиенту в `~/.ssh/config`:
+
+```
+Host t1
+    SendEnv COLORTERM
+```
+
+Проверка на VM вне tmux: `echo $COLORTERM` → `truecolor`, в Emacs
+`M-: (display-color-cells)` → `16777216`. Без truecolor Emacs сам берёт
+тему `modus-vivendi` вместо `ef-maris-dark`.
+
 ### 9. Секреты (на VM)
 
 Положить age-ключ (как — раздел «Секреты»: скопировать `~/.age-key` или
@@ -798,6 +812,11 @@ AI-пакеты (agent-shell, gptel, ellama, eca), рабочие модули
   `Invalid completion style orderless`. Новое окно tmux не поможет — оно
   берёт окружение у сервера tmux: `tmux kill-server`, выйти из ssh, зайти
   заново. Проверка: `echo $EMACSLOADPATH` непустой.
+- **По ssh без tmux тема «грязная».** ssh не передаёт `COLORTERM`, Emacs
+  не знает про truecolor и рисует в 256 цветах. `SendEnv COLORTERM` на
+  клиенте + `AcceptEnv` на сервере (в `t1.scm` уже есть). Задавать
+  `COLORTERM` на сервере жёстко не стоит: в консоли без truecolor
+  (tty локальной VM) это даст мусор.
 - **`~/.emacs.d` побеждает `~/.config/emacs`.** Если на машине есть
   `~/.emacs.d` (или `~/.emacs`), Emacs возьмёт его. На хосте — либо
   `--init-directory`, либо переименовать старый каталог.

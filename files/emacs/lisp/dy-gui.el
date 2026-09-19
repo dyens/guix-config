@@ -1,8 +1,15 @@
 ;;; dy-gui.el --- тема, шрифт, номера строк -*- lexical-binding: t; -*-
 
+;; Тема. ef-maris-dark задана точными 24-битными цветами; в терминале без
+;; truecolor Emacs огрубляет её до 256 цветов, и выглядит она плохо. Так
+;; бывает по ssh без `SendEnv COLORTERM' (см. README, «Облачная VM»).
+;; Тогда — встроенная modus-vivendi: она рассчитана и на 256 цветов.
+(defun dy-truecolor-p ()
+  (or (display-graphic-p) (>= (display-color-cells) 16777216)))
+
 (use-package ef-themes
   :config
-  (load-theme 'ef-maris-dark t))
+  (load-theme (if (dy-truecolor-p) 'ef-maris-dark 'modus-vivendi) t))
 
 ;; Шрифт — только если он есть (пакет font-aporetic ставится в home/dyens.scm,
 ;; в терминале шрифт задаёт терминал). Через хук, чтобы работало и для
