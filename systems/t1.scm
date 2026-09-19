@@ -21,7 +21,8 @@
              (systems docker)            ; Docker Engine (статический)
              (gnu services networking)   ; dhcpcd, ntp
              (gnu services ssh)          ; openssh-service-type
-             (systems wg-quick))         ; WireGuard из конфига в sops (home)
+             (systems wg-quick)          ; WireGuard из конфига в sops (home)
+             (systems net-mtu))          ; MTU внешнего интерфейса
 
 ;; WireGuard ruclaw. После первого включения t1 потерял ssh (TCP есть,
 ;; приветствия sshd нет — похоже, завис shepherd), причина не найдена.
@@ -81,6 +82,9 @@
                  ;; В systems/base.scm он приходит с %desktop-services.
                  (service elogind-service-type)
                  (service ntp-service-type)
+                 ;; Сеть облака оверлейная: 1500 не проходит, DHCP опцию MTU
+                 ;; не присылает. Симптом — TCP есть, данные не уходят.
+                 (interface-mtu-service "eth0" 1450)
                  ;; Эти адреса — через VPN (tun xray0 → SOCKS 10808 →
                  ;; Xray-клиент из home). Как net.sh на хосте.
                  (xray-tun-service
