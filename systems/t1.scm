@@ -62,20 +62,11 @@
 
   ;; По метке, а не по UUID: так её создаёт `guix system image`,
   ;; и UUID заранее неизвестен.
-  (file-systems (cons* (file-system
-                         (mount-point "/")
-                         (device (file-system-label "Guix_image"))
-                         (type "ext4"))
-                       ;; securityfs: в %base-file-systems его нет, а без него
-                       ;; нет /sys/kernel/security/lsm (проверка активных LSM)
-                       ;; и каталога, который ждут некоторые песочницы.
-                       (file-system
-                         (mount-point "/sys/kernel/security")
-                         (device "securityfs")
-                         (type "securityfs")
-                         (check? #f)
-                         (create-mount-point? #f))
-                       %base-file-systems))
+  (file-systems (cons (file-system
+                        (mount-point "/")
+                        (device (file-system-label "Guix_image"))
+                        (type "ext4"))
+                      %base-file-systems))
 
   (users (cons (user-account
                 (name "dyens")
