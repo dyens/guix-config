@@ -633,13 +633,30 @@ WireGuard).
 здесь — руками, один раз. ext4 растягивается на смонтированном корне,
 перезагрузка не нужна:
 
+Конец раздела задаём **явно, в секторах**, а не через `100%`. Причина —
+в «Граблях» ниже: однажды `100%` доехал до parted как `100`, тот принял
+свою единицу по умолчанию (мегабайты) и обрезал корень до 100 МБ.
+
 ```sh
 lsblk                                         # диск vda, корень vda2
-sudo guix shell parted e2fsprogs -- parted /dev/vda resizepart 2 100%
+sudo parted -s /dev/vda unit s print          # запомнить Start раздела 2
+END=$(( $(cat /sys/block/vda/size) - 1 ))     # последний сектор диска
+echo $END
+
+sudo parted /dev/vda resizepart 2 ${END}s
 #   «Partition /dev/vda2 is being used. Are you sure?» -> Yes
-sudo guix shell e2fsprogs -- resize2fs /dev/vda2
+
+# ПРОВЕРИТЬ ДО resize2fs: Start прежний, End = $END, размер во весь диск
+sudo parted -s /dev/vda unit s print
+
+sudo resize2fs /dev/vda2
 df -h /
 ```
+
+`parted` и `resize2fs` берём из `guix shell parted e2fsprogs --`, если их
+нет в профиле. Но держите в голове: если корень уже ушёл в read-only,
+`guix shell` не запустится (ему нужна запись в `/var/guix`) — тогда
+бинарники вызываются прямо из стора, `/gnu/store/*-parted-*/sbin/parted`.
 
 ### 6. Репозиторий и пин Guix (на VM)
 
@@ -1559,6 +1576,17 @@ GDM — тяжёлый GNOME-компонент, который тянет по�
 - **Раскладка по слоям**: X — после перелогина, консоль — после reboot,
   GRUB — со следующего поколения.
 - **Dotfiles read-only** после `guix home reconfigure` — правьте `files/`.
+- **`parted resizepart 2 100%` может обрезать раздел.** Если `%` до parted
+  не доедет, он поймёт `100` в своей единице по умолчанию — мегабайтах — и
+  раздел схлопнется. Так корень t1 стал 100 МБ при живой ФС на 99 ГБ:
+  ядро увидело ФС за границей раздела и аварийно перевело корень в
+  read-only (`emergency_ro` в `/proc/mounts`), а всё, что лежит на диске
+  дальше 100 МБ, перестало читаться — включая половину `/gnu/store`.
+  Задавайте конец в секторах и **проверяйте `parted print` до `resize2fs`**.
+  Данные при этом целы: `resizepart` правит только таблицу разделов.
+  Лечение — вернуть конец раздела на место тем же `resizepart` (начало не
+  трогать!), перезагрузиться ради fsck, затем `resize2fs`. `remount,rw` не
+  поможет: состояние shutdown у ext4 снимается только размонтированием.
 - **`xterm-extra-capabilities` под tmux не читается.** `term/tmux.el`
   let-биндит её значением `xterm-tmux-extra-capabilities`, а в умолчании
   той только `(modifyOtherKeys)`. Итог: внутри tmux OSC 52 молча выключен
