@@ -1,4 +1,12 @@
-;;; Свои скиллы Claude Code: files/claude/skills -> ~/.claude/skills.
+;;; Своё хозяйство Claude Code: скиллы и хук уведомлений.
+;;;
+;;;     files/claude/skills -> ~/.claude/skills
+;;;     files/claude/hooks  -> ~/.claude/hooks
+;;;
+;;; А вот ~/.claude/settings.json Guix Home НЕ трогает, и это намеренно:
+;;; туда Claude Code пишет сам (тема, включённые плагины), симлинк в стор
+;;; это сломает. Блок "hooks" там правится руками — см. README, раздел
+;;; «Уведомления Claude Code».
 ;;;
 ;;; Скилл — это каталог с SKILL.md (и, если нужно, скриптами рядом).
 ;;; Claude Code подхватывает всё, что лежит в ~/.claude/skills.
@@ -43,4 +51,11 @@
                                         #:recursive? #t))
                           (".claude/skills/update-cs-service-on-d3"
                            ,(local-file "../files/claude/skills/update-cs-service-on-d3"
+                                        #:recursive? #t))
+                          ;; #:recursive? #t здесь не ради каталога, а ради
+                          ;; бита +x: без него local-file кладёт одиночный
+                          ;; файл в стор без права на исполнение, и хук
+                          ;; молча не запустится.
+                          (".claude/hooks/notify.sh"
+                           ,(local-file "../files/claude/hooks/notify.sh"
                                         #:recursive? #t))))))
