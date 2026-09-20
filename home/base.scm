@@ -27,6 +27,7 @@
   #:use-module (home docker)                 ; плагины docker compose/buildx
   #:use-module (home wireguard)              ; секреты WireGuard (туннель — в системе)
   #:use-module (home ssh)                    ; ~/.ssh/config, ключ GitLab из sops
+  #:use-module (home claude)                 ; свои скиллы Claude Code
   #:export (make-home))
 
 ;; Зашифрованные секреты. В стор уезжает только шифротекст, открытый
@@ -116,6 +117,7 @@
      %emacs-services
      %xray-services
      %docker-cli-services
+     %claude-services
      %wireguard-secrets
      %ssh-services
      extra-services))))

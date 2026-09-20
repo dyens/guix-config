@@ -127,6 +127,8 @@ startx
 | `systems/docker.scm` | сервис dockerd + группа docker | — (подключается в `systems/<host>.scm`) |
 | `home/docker.scm` | плагины `docker compose`/`buildx` в `~/.docker/cli-plugins` (входит в base) | — |
 | `home/ssh.scm` | `~/.ssh/config`, ключ GitLab из sops (входит в base) | — |
+| `home/claude.scm` | свои скиллы Claude Code в `~/.claude/skills` (входит в base) | — |
+| `files/claude/skills/` | сами скиллы: каталог с `SKILL.md` на каждый | — |
 | `files/secrets/ssh.yaml` | приватный ключ для GitLab CROC (`croc-gitlab`), зашифрован sops | см. «Ключ для GitLab» |
 | `systems/wg-quick.scm` | WireGuard: конфиг wg-quick из sops + сервис + `/etc/hosts` | — (подключается в `systems/<host>.scm`) |
 | `files/secrets/wg-ruclaw.yaml` | конфиг wg-quick проектной сети ruclaw (с ключом), зашифрован sops | см. «WireGuard» |
@@ -1111,6 +1113,41 @@ AI-пакеты (agent-shell, gptel, ellama, eca), рабочие модули
   `.eln`; нативно собран лишь встроенный Lisp самого Emacs). При первом
   интерактивном запуске Emacs нативно компилирует их в фоне в
   `~/.local/state/emacs/eln-cache` — первый запуск медленнее, это норма.
+
+## Скиллы Claude Code
+
+Скилл — каталог с `SKILL.md`; Claude Code берёт их из `~/.claude/skills`.
+Свои лежат в `files/claude/skills/`, раскладывает их `home/claude.scm`.
+
+```
+files/claude/skills/
+  jira/SKILL.md                     задача по ссылке или номеру
+  implement/SKILL.md
+  to-tickets/SKILL.md
+  update-cs-service-on-d3/SKILL.md  выкатка сервиса на d3
+```
+
+Симлинкуется **каждый скилл по отдельности**, а не каталог `skills`
+целиком. Это принципиально: сам `~/.claude/skills` должен остаться
+обычным каталогом, потому что Claude Code складывает в него
+`~/.claude/skills/synced` — скиллы, которые он синхронизирует из облака
+сам (`pdf`, `docx`, `xlsx`, `skill-creator` и прочие, несколько
+мегабайт). Сделайте симлинком весь `skills` — и синхронизация упрётся
+в read-only стор. По той же причине `synced/` нет в репозитории: он не
+наш и из него не воспроизводится.
+
+Остальное в `~/.claude` (`settings.json`, `projects`, `sessions`,
+`.credentials.json`) Guix Home не трогает — ровно как
+`~/.docker/config.json` в `home/docker.scm`.
+
+Новый скилл: положить каталог в `files/claude/skills/`, дописать строку
+в `home/claude.scm`, `homerec`. Цикл по списку имён там не годится —
+`local-file` разрешает относительный путь при раскрытии макроса и
+требует литерала.
+
+Токенам в скиллах не место: они уезжают в стор, который читает любой
+пользователь машины, и лежат в git. Секреты берутся из окружения
+(`JIRA_API_TOKEN`, `GITLAB_TOKEN`) — см. `.envrc` проекта.
 
 ## Docker
 
