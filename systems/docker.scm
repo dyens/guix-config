@@ -42,6 +42,36 @@
       ("insecure-registries" . ,(list->vector insecure-registries))
       ,@(if (null? dns) '() `(("dns" . ,(list->vector dns))))))))
 
+(define %br-netfilter-service
+  ;; br_netfilter + net.bridge.bridge-nf-call-iptables=1: трафик мостов
+  ;; (а это сети Docker) проходит через iptables. Нужно kube-proxy и
+  ;; подобным вещам внутри контейнеров; dockerd делает это не всегда.
+  ;;
+  ;; Почему не kernel-module-loader-service-type + sysctl-service-type:
+  ;; сервис sysctl в Guix не зависит от загрузчика модулей и может отработать
+  ;; раньше — тогда параметра ещё нет и настройка молча теряется. Здесь оба
+  ;; шага по порядку в одном one-shot, и dockerd ждёт его.
+  (shepherd-service
+   (provision '(br-netfilter))
+   (requirement '(udev))
+   (one-shot? #t)
+   (documentation "br_netfilter + bridge-nf-call-iptables=1.")
+   (modules '((ice-9 rdelim)))
+   (start
+    #~(lambda _
+        ;; modprobe берём из /proc/sys/kernel/modprobe — в Guix это обёртка,
+        ;; знающая, где лежат модули текущего ядра (так делает и сам Guix).
+        (let ((modprobe (call-with-input-file "/proc/sys/kernel/modprobe"
+                          read-line)))
+          (system* modprobe "--" "br_netfilter"))
+        (let ((knob "/proc/sys/net/bridge/bridge-nf-call-iptables"))
+          (if (file-exists? knob)
+              (begin (call-with-output-file knob
+                       (lambda (port) (display "1" port)))
+                     #t)
+              (begin (format #t "br-netfilter: ~a не появился~%" knob)
+                     #f)))))))
+
 (define* (docker-static-services #:key
                                  (insecure-registries '())
                                  (dns '()))
@@ -58,11 +88,12 @@ DNS — DNS-серверы для контейнеров (пусто — как 
    (simple-service
     'dockerd shepherd-root-service-type
     (list
+     %br-netfilter-service
      (shepherd-service
       (provision '(dockerd))
       ;; Как у штатного сервиса Guix: cgroup смонтирован, сеть поднята.
       (requirement '(user-processes file-system-/sys/fs/cgroup
-                                    networking udev elogind))
+                                    networking udev elogind br-netfilter))
       (documentation "Docker Engine (статическая сборка).")
       (start
        #~(make-forkexec-constructor

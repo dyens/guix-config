@@ -960,6 +960,13 @@ Engine 29 (dockerd, containerd, runc, CLI), compose v5, buildx.
 | `dockerd` (сам запускает свой containerd), группа `docker`, `docker` CLI в системном профиле | `systems/docker.scm` → `docker-static-services` в `systems/<host>.scm` (сейчас t1) |
 | плагины `docker compose`, `docker buildx` | `home/docker.scm` → `~/.docker/cli-plugins/`, входит в `make-home` |
 
+Вместе с `dockerd` поднимается one-shot `br-netfilter`: грузит модуль
+`br_netfilter` и ставит `net.bridge.bridge-nf-call-iptables=1` — трафик
+мостов (то есть сетей Docker) идёт через iptables. Штатные
+`kernel-module-loader-service-type` + `sysctl-service-type` для этого не
+годятся: сервис `sysctl` в Guix не зависит от загрузчика модулей и может
+отработать раньше, когда параметра ещё нет, — настройка молча потеряется.
+
 `daemon.json` собирается в сервисе: `cgroupfs` (systemd нет), insecure-
 реестры параметром, сети compose — из `10.210.0.0/16`, а не из дефолтных
 172.17–172.31: те пересекаются с сетями за VPN (ruclaw — `172.31.0.0/20`, …).
