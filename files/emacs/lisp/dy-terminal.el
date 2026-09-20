@@ -29,4 +29,17 @@
 ;; грузит term/xterm.el.
 (setq xterm-extra-capabilities '(setSelection))
 
+;; ...но под TERM=tmux-* этой переменной Emacs НЕ читает. term/tmux.el:
+;;
+;;   (defcustom xterm-tmux-extra-capabilities '(modifyOtherKeys) ...)
+;;   (defun terminal-init-tmux ()
+;;     (let ((xterm-extra-capabilities xterm-tmux-extra-capabilities))
+;;       (tty-run-terminal-initialization (selected-frame) "xterm")))
+;;
+;; То есть значение выше затеняется let-биндингом, а в умолчании tmux'а
+;; setSelection нет. Из-за этого внутри tmux (а это все наши сессии, там
+;; default-terminal "tmux-256color") OSC 52 молча не работал: kill в
+;; Emacs никуда не уходил. modifyOtherKeys оставляем, он там был.
+(setq xterm-tmux-extra-capabilities '(modifyOtherKeys setSelection))
+
 (provide 'dy-terminal)
