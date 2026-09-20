@@ -33,6 +33,12 @@ command -v direnv >/dev/null && eval "$(direnv hook bash)"
 # Выключить в текущем шелле: DY_BELL_SEC=0
 DY_BELL_SEC=${DY_BELL_SEC:-20}
 
+# Интерактивные программы из сигнала исключены. Меряется время всей
+# командной строки, поэтому `vim файл`, в котором просидели три минуты,
+# иначе давал бы «готово: vim файл (180с)» — а вы и так смотрели в это
+# окно. Сравнивается первое слово команды, без пути.
+DY_BELL_SKIP=${DY_BELL_SKIP:-"vim vi nvim emacs emacsclient nano less more man top htop btop watch ssh tmux info bat"}
+
 # Два сигнала, потому что одного мало.
 #
 # \a — в /dev/tty, а не в stdout: иначе `долгая_команда > log` уронит его
@@ -83,6 +89,9 @@ _dy_bell_precmd() {
     # попадает (HISTCONTROL=ignoreboth) — тогда в строке будет предыдущая.
     local n cmd
     read -r n cmd <<< "$(HISTTIMEFORMAT= builtin history 1)"
+    # Первое слово без пути: /usr/bin/vim -> vim, sudo vim -> sudo.
+    local first=${cmd%% *}
+    case " $DY_BELL_SKIP " in *" ${first##*/} "*) return 0 ;; esac
     _dy_bell "$rc" "$dur" "$cmd"
 }
 
