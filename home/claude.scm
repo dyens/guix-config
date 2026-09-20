@@ -1,12 +1,18 @@
-;;; Своё хозяйство Claude Code: скиллы и хук уведомлений.
+;;; Своё хозяйство Claude Code: настройки, скиллы, хук уведомлений.
 ;;;
-;;;     files/claude/skills -> ~/.claude/skills
-;;;     files/claude/hooks  -> ~/.claude/hooks
+;;;     files/claude/settings.json -> ~/.claude/settings.json
+;;;     files/claude/skills        -> ~/.claude/skills
+;;;     files/claude/hooks         -> ~/.claude/hooks
 ;;;
-;;; А вот ~/.claude/settings.json Guix Home НЕ трогает, и это намеренно:
-;;; туда Claude Code пишет сам (тема, включённые плагины), симлинк в стор
-;;; это сломает. Блок "hooks" там правится руками — см. README, раздел
-;;; «Уведомления Claude Code».
+;;; settings.json — read-only симлинк в стор, со всеми вытекающими: сам
+;;; Claude Code в него больше не запишет. Значит тема и список включённых
+;;; плагинов правятся ЗДЕСЬ, а /config и менеджер плагинов изменение не
+;;; сохранят. Это осознанный размен, тот же, что с конфигом Emacs.
+;;;
+;;; Проверено на t1: с read-only settings.json claude запускается и
+;;; работает штатно, на файл не ругается; хук по пути
+;;; "$HOME/.claude/hooks/notify.sh" из него срабатывает ($HOME
+;;; раскрывается, команда идёт через шелл).
 ;;;
 ;;; Скилл — это каталог с SKILL.md (и, если нужно, скриптами рядом).
 ;;; Claude Code подхватывает всё, что лежит в ~/.claude/skills.
@@ -21,8 +27,8 @@
 ;;; По той же причине synced/ нет и в репозитории: он не наш и не
 ;;; воспроизводится из него.
 ;;;
-;;; Остальное в ~/.claude (settings.json, projects, sessions, credentials)
-;;; Guix Home не трогает — как и ~/.docker/config.json в home/docker.scm.
+;;; Остальное в ~/.claude (projects, sessions, .credentials.json, history,
+;;; plugins) Guix Home не трогает — туда Claude Code пишет постоянно.
 ;;;
 ;;; Новый скилл: положить каталог в files/claude/skills/ и дописать сюда
 ;;; строку. Цикл по списку имён тут не годится — local-file разрешает
@@ -39,8 +45,10 @@
   #:export (%claude-services))
 
 (define %claude-services
-  (list (simple-service 'claude-skills home-files-service-type
-                        `((".claude/skills/implement"
+  (list (simple-service 'claude-files home-files-service-type
+                        `((".claude/settings.json"
+                           ,(local-file "../files/claude/settings.json"))
+                          (".claude/skills/implement"
                            ,(local-file "../files/claude/skills/implement"
                                         #:recursive? #t))
                           (".claude/skills/jira"

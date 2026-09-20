@@ -127,8 +127,10 @@ startx
 | `systems/docker.scm` | сервис dockerd + группа docker | — (подключается в `systems/<host>.scm`) |
 | `home/docker.scm` | плагины `docker compose`/`buildx` в `~/.docker/cli-plugins` (входит в base) | — |
 | `home/ssh.scm` | `~/.ssh/config`, ключ GitLab из sops (входит в base) | — |
-| `home/claude.scm` | свои скиллы Claude Code в `~/.claude/skills` (входит в base) | — |
+| `home/claude.scm` | Claude Code: `settings.json`, скиллы, хук уведомлений (входит в base) | — |
+| `files/claude/settings.json` | настройки Claude Code: attribution, worktree, hooks, тема, плагины | — |
 | `files/claude/skills/` | сами скиллы: каталог с `SKILL.md` на каждый | — |
+| `files/claude/hooks/notify.sh` | уведомление в tmux, когда Claude закончил или ждёт разрешения | — |
 | `files/secrets/ssh.yaml` | приватный ключ для GitLab CROC (`croc-gitlab`), зашифрован sops | см. «Ключ для GitLab» |
 | `systems/wg-quick.scm` | WireGuard: конфиг wg-quick из sops + сервис + `/etc/hosts` | — (подключается в `systems/<host>.scm`) |
 | `files/secrets/wg-ruclaw.yaml` | конфиг wg-quick проектной сети ruclaw (с ключом), зашифрован sops | см. «WireGuard» |
@@ -1155,9 +1157,9 @@ files/claude/skills/
 в read-only стор. По той же причине `synced/` нет в репозитории: он не
 наш и из него не воспроизводится.
 
-Остальное в `~/.claude` (`settings.json`, `projects`, `sessions`,
-`.credentials.json`) Guix Home не трогает — ровно как
-`~/.docker/config.json` в `home/docker.scm`.
+Остальное в `~/.claude` (`projects`, `sessions`, `.credentials.json`,
+`history.jsonl`, `plugins`) Guix Home не трогает — туда Claude Code пишет
+постоянно, ровно как в `~/.docker/config.json` (см. `home/docker.scm`).
 
 Новый скилл: положить каталог в `files/claude/skills/`, дописать строку
 в `home/claude.scm`, `homerec`. Цикл по списку имён там не годится —
@@ -1180,25 +1182,25 @@ Claude Code работает в своём окне tmux, вы — в сосед
   вкладка краснеет до тех пор, пока в неё не заглянешь, и звонок уходит
   в локальный терминал за ssh.
 
-Сам скрипт раскатывает `home/claude.scm`, а блок `hooks` дописывается в
-`~/.claude/settings.json` **руками**, один раз:
+И скрипт, и сам `settings.json` раскатывает `home/claude.scm` — правится
+всё в `files/claude/`, затем `homerec`. Команда хука записана как
+`$HOME/.claude/hooks/notify.sh`: она идёт через шелл, `$HOME`
+раскрывается (проверено на t1).
 
-```json
-{
-  "hooks": {
-    "Stop": [
-      { "hooks": [ { "type": "command", "command": "~/.claude/hooks/notify.sh" } ] }
-    ],
-    "PermissionRequest": [
-      { "hooks": [ { "type": "command", "command": "~/.claude/hooks/notify.sh" } ] }
-    ]
-  }
-}
-```
+### settings.json под Guix: чем платим
 
-Руками — потому что в этот файл пишет сам Claude Code (тема, включённые
-плагины), и симлинк в стор его сломает. Остальные ключи в файле не
-трогайте, блок `hooks` добавляется к ним.
+`~/.claude/settings.json` стал read-only симлинком в стор, и Claude Code
+в него больше не запишет. Практически это значит:
+
+- **тема** (`/config`) и **включённые плагины** — теперь правятся в
+  `files/claude/settings.json` и приезжают через `homerec`; сами по себе
+  они не сохранятся;
+- всё остальное состояние (сессии, история, credentials) живёт рядом и
+  пишется как обычно — его Guix Home не трогает.
+
+Размен тот же, что с конфигом Emacs: конфигурация воспроизводится из
+репозитория, а не накликивается. Проверено на t1, что с read-only
+файлом `claude` запускается и работает штатно, не ругаясь на него.
 
 `PermissionRequest` — это «Claude упёрся в запрос доступа и стоит». По
 -моему, сигнал даже полезнее, чем `Stop`: про «закончил» вы рано или
