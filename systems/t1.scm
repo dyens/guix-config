@@ -43,7 +43,15 @@
   ;; (base-initrd-modules linux-libre). Не менять, пока хост на старом Guix:
   ;; там новой процедуры нет, и образ перестанет собираться.
   (initrd-modules (cons* "virtio_scsi" %base-initrd-modules))
-  (kernel-arguments (list "console=tty0" "console=ttyS0,115200"))
+  ;; lsm= ЗАМЕНЯЕТ весь список модулей безопасности, а не дополняет его,
+  ;; поэтому здесь перечислен CONFIG_LSM ядра Guix
+  ;; ("yama,loadpin,safesetid,integrity,apparmor,selinux,smack,tomoyo")
+  ;; плюс landlock: он в ядре собран (CONFIG_SECURITY_LANDLOCK=y), но в
+  ;; списке по умолчанию отсутствует, а песочнице проекта он нужен.
+  ;; Проверка после перезагрузки: cat /sys/kernel/security/lsm
+  (kernel-arguments
+   (list "console=tty0" "console=ttyS0,115200"
+         "lsm=landlock,yama,loadpin,safesetid,integrity,apparmor,selinux,smack,tomoyo"))
 
   (bootloader (bootloader-configuration
                (bootloader grub-bootloader)
