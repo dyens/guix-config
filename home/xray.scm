@@ -11,6 +11,10 @@
 ;;;   - всё остальное к выбранным адресам — через системный tun
 ;;;     (systems/xray-tun.scm, подключается в systems/<host>.scm).
 ;;;
+;;; В конфиге обязателен ЯВНЫЙ TLS-отпечаток: "fingerprint": "hellochrome_131",
+;;; а не "chrome" (тот переезжает вместе с версией ядра, и DPI это ловит) —
+;;; см. README, «VPN (Xray)».
+;;;
 ;;; Первый раз: создать секрет — см. README, «VPN».
 
 (define-module (home xray)
