@@ -25,6 +25,53 @@ export DISABLE_UPDATES=1
 # при входе в каталог. direnv ставит home/emacs.scm (он нужен и Emacs).
 command -v direnv >/dev/null && eval "$(direnv hook bash)"
 
+# Звонок по окончании долгой команды.
+#
+# Всё, что выполнялось дольше DY_BELL_SEC секунд, на выходе печатает \a.
+# Дальше это ловит tmux (monitor-bell on): вкладка в статусбаре краснеет,
+# а сам звонок уходит в локальный терминал за ssh — см. files/tmux.conf.
+# Выключить в текущем шелле: DY_BELL_SEC=0
+DY_BELL_SEC=${DY_BELL_SEC:-20}
+
+# В /dev/tty, а не в stdout: иначе `долгая_команда > log` уронит \a в лог.
+_dy_bell() { printf '\a' >/dev/tty 2>/dev/null || printf '\a'; }
+
+# Замер времени на трапе DEBUG. Трап срабатывает перед каждой простой
+# командой, в том числе перед самим PROMPT_COMMAND, поэтому нужен флаг
+# _dy_at_prompt: без него в длительность попадёт время, пока мы думали
+# над пустым приглашением. Внутрь функций трап не наследуется (нет
+# set -o functrace), так что тела _dy_bell_* себя не задевают.
+_dy_bell_preexec() {
+    [ -n "$COMP_LINE" ] && return      # это автодополнение, а не команда
+    [ -n "$_dy_at_prompt" ] || return  # не первая команда после приглашения
+    unset _dy_at_prompt
+    _dy_started=$SECONDS
+}
+
+_dy_bell_precmd() {
+    if [ -n "$_dy_started" ]; then
+        local dur=$(( SECONDS - _dy_started ))
+        unset _dy_started
+        if [ "${DY_BELL_SEC:-0}" -gt 0 ] && [ "$dur" -ge "$DY_BELL_SEC" ]; then
+            _dy_bell
+        fi
+    fi
+    _dy_at_prompt=1   # последней строкой: DEBUG сработает и на самом
+}                     # PROMPT_COMMAND, флаг должен встать уже после этого
+
+trap '_dy_bell_preexec' DEBUG
+PROMPT_COMMAND="_dy_bell_precmd${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+
+# Позвонить вручную, когда порог не подходит:
+#   ding make -j8          — запустить и позвонить
+#   make -j8; ding         — то же хвостом
+ding() {
+    local rc=0
+    if [ $# -gt 0 ]; then "$@"; rc=$?; fi
+    _dy_bell
+    return $rc
+}
+
 # Локальные настройки и СЕКРЕТЫ.
 #
 # Этот файл (files/bashrc) уезжает в /gnu/store, который читается любым
