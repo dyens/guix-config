@@ -1677,6 +1677,34 @@ GDM — тяжёлый GNOME-компонент, который тянет по�
 - **Раскладка по слоям**: X — после перелогина, консоль — после reboot,
   GRUB — со следующего поколения.
 - **Dotfiles read-only** после `guix home reconfigure` — правьте `files/`.
+- **После аварии с диском стор может быть тихо битым.** ext4 с отложенным
+  выделением блоков: файлы, записанные незадолго до аварийного ro и
+  перезагрузки, остаются НУЛЕВОЙ длины. Симптом обманчивый — падает сборка
+  профиля на безобидной правке манифеста: `install-info: Exec format
+  error`, `load-thunk-from-file: Invalid argument`. Найти:
+
+  ```sh
+  find /gnu/store -xdev -type f -size 0 -perm -u+x -not -path "*/.links/*"
+  ```
+
+  Чинится `sudo guix gc --verify=contents,repair`, но **одного прохода
+  мало**: Guix дедуплицирует файлы через `/gnu/store/.links`, и если там
+  лежит битая нулевая запись, свежескачанный файл линкуется обратно к ней.
+  Сначала чистим дедупликацию, потом чиним:
+
+  ```sh
+  sudo mount -o remount,rw /gnu/store
+  sudo find /gnu/store/.links -maxdepth 1 -type f -size 0 -delete
+  sudo mount -o remount,bind,ro /gnu/store      # именно bind, см. ниже
+  sudo guix gc --verify=contents,repair
+  ```
+
+  Законно пустой файл дал бы в `.links` ровно ОДНУ запись (имя — хеш
+  содержимого), так что десятки записей с разными именами — все битые.
+- **`/gnu/store` монтируется отдельно и только на чтение.** Вернуть его в
+  ro надо через `mount -o remount,bind,ro /gnu/store`: без `bind` команда
+  пытается перемонтировать корень целиком и падает с «mount point is
+  busy», молча оставив стор открытым на запись.
 - **`BASH_ENV` не чинит PATH для Claude Code.** Он читается при старте
   шелла, а Claude Code потом источит свой снимок, последняя строка
   которого — жёсткий `export PATH=…`. Переменные окружения доживут,
