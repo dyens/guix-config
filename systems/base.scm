@@ -13,6 +13,7 @@
   #:use-module (gnu services desktop)   ; %desktop-services
   #:use-module (gnu services xorg)      ; gdm-service-type
   #:use-module (gnu services ssh)       ; openssh-service-type
+  #:use-module (systems fhs)            ; /lib64/ld-linux — загрузчик для чужих бинарников
   #:export (make-system
             %substitute-urls
             %keyboard-layout))
@@ -71,7 +72,10 @@
      (append (list (service openssh-service-type
                             (openssh-configuration
                              (password-authentication? ssh-password-auth?)
-                             (authorized-keys ssh-authorized-keys))))
+                             (authorized-keys ssh-authorized-keys)))
+
+                   ;; /lib64/ld-linux-x86-64.so.2 — см. systems/fhs.scm.
+                   %fhs-loader-service)
              extra-services
              ;; delete gdm-service-type: display manager не используем,
              ;; графика поднимается из home через startx. По той же

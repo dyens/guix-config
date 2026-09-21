@@ -21,7 +21,8 @@
              (systems docker)            ; Docker Engine (статический)
              (gnu services networking)   ; dhcpcd, ntp
              (gnu services ssh)          ; openssh-service-type
-             (systems wg-quick))         ; WireGuard из конфига в sops (home)
+             (systems wg-quick)          ; WireGuard из конфига в sops (home)
+             (systems fhs))              ; /lib64/ld-linux для чужих бинарников
 
 ;; WireGuard ruclaw. После первого включения t1 потерял ssh (TCP есть,
 ;; приветствия sshd нет — похоже, завис shepherd), причина не найдена.
@@ -83,6 +84,9 @@
 
   (services
    (append (list (service dhcpcd-service-type)
+                 ;; /lib64/ld-linux-x86-64.so.2: без него не стартуют
+                 ;; бинарники из uv/npm. См. systems/fhs.scm.
+                 %fhs-loader-service
                  ;; elogind создаёт /run/user/$UID при входе (через PAM).
                  ;; Без него нет XDG_RUNTIME_DIR, и guix home падает на старте
                  ;; home-shepherd: «mkdir: Permission denied: "/run/user"».

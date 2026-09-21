@@ -125,6 +125,7 @@ startx
 | `packages/xray.scm` | Xray-core, статический бинарник релиза | — (подключается модулем) |
 | `packages/docker.scm` | Docker Engine 29, compose, buildx — статические бинарники | — (подключается модулем) |
 | `systems/docker.scm` | сервис dockerd + группа docker | — (подключается в `systems/<host>.scm`) |
+| `systems/fhs.scm` | `/lib64/ld-linux-x86-64.so.2` для бинарников не из Guix | — (подключается модулем) |
 | `home/docker.scm` | плагины `docker compose`/`buildx` в `~/.docker/cli-plugins` (входит в base) | — |
 | `home/ssh.scm` | `~/.ssh/config`, ключ GitLab из sops (входит в base) | — |
 | `home/claude.scm` | Claude Code: `settings.json`, скиллы, хук уведомлений (входит в base) | — |
@@ -1065,7 +1066,56 @@ eglot, Python (docstring, pytest, ruff, pyvenv), Go, Rust, org
 AI-пакеты (agent-shell, gptel, ellama, eca), рабочие модули
 (`dy-http`, `dy-kaas`, `dy-t1`, …). Вернуть — см. «Добавить пакет».
 
-### Грабли
+### Готовые бинарники не из Guix (uv, npm)
+
+`uv sync` ставит готовые колёса PyPI, а это собранные бинарники. `ruff` —
+24 МБ скомпилированного Rust, прошитого на FHS-путь
+`/lib64/ld-linux-x86-64.so.2`, которого в Guix нет. Сообщение обманывает:
+
+```
+bash: ./.venv/bin/ruff: cannot execute: required file not found
+```
+
+«Не найден» не сам ruff, а его загрузчик. То же будет с нодами из
+corepack и вообще со всем, что качают пакетные менеджеры языков.
+
+Нужны **две** вещи, и по отдельности ни одна не помогает.
+
+**1. Загрузчик** — `systems/fhs.scm`, подключён в `systems/base.scm` (vm,
+laptop) и в `systems/t1.scm`. Применяется через `sysrec`. Встаёт в один
+список со штатными `/bin/sh` и `/usr/bin/env`.
+
+**2. Путь к остальным библиотекам** — в `.envrc` проекта:
+
+```sh
+export LD_LIBRARY_PATH=$GUIX_ENVIRONMENT/lib
+```
+
+Своим путём поиска загрузчик найдёт только библиотеки собственного glibc
+(`libc`, `libm`, `libdl`, `libpthread`, `librt`). `ruff` тянет ещё
+`libgcc_s.so.1` из `gcc-toolchain` — он должен быть в `manifest.scm`
+проекта. Без этой строки будет
+`error while loading shared libraries: libgcc_s.so.1`.
+
+Проверено на t1 по шагам:
+
+```
+как есть                                → cannot execute: required file not found
++ /lib64/ld-linux-x86-64.so.2           → libgcc_s.so.1: cannot open shared object
++ LD_LIBRARY_PATH=$GUIX_ENVIRONMENT/lib → ruff 0.16.8
+```
+
+### Чем платим
+
+Отступление от чистоты, осознанное: машина начинает запускать чужие
+бинарники, и то, что должно было сломаться громко, теперь работает тихо.
+Плата за то, чтобы `uv sync` не требовал плясок.
+
+Альтернатива без правки системы — `guix shell -F --container`
+(`--emulate-fhs`), она поддерживается. Но тянет за собой изоляцию
+контейнера: `--network`, проброс каталогов, возня с docker.
+
+## Грабли
 
 - **Грамматики Guix не видны до `(require 'treesit)`.** Путь из
   `TREE_SITTER_GRAMMAR_PATH` попадает в `treesit-extra-load-path` только
@@ -1677,6 +1727,15 @@ GDM — тяжёлый GNOME-компонент, который тянет по�
 - **Раскладка по слоям**: X — после перелогина, консоль — после reboot,
   GRUB — со следующего поколения.
 - **Dotfiles read-only** после `guix home reconfigure` — правьте `files/`.
+- **`systems/base.scm` — НЕ общая часть всех машин.** Его берут только
+  `vm.scm` и `laptop.scm`; `t1.scm` собирает `operating-system` сам.
+  Правка в base.scm до t1 не доедет, причём молча — конфигурация
+  соберётся как ни в чём не бывало. Проверять так: собрать конфиг с
+  правкой и без неё и сравнить пути, они обязаны отличаться.
+
+  ```sh
+  guix system build systems/t1.scm    # в двух копиях репозитория
+  ```
 - **После аварии с диском стор может быть тихо битым.** ext4 с отложенным
   выделением блоков: файлы, записанные незадолго до аварийного ro и
   перезагрузки, остаются НУЛЕВОЙ длины. Симптом обманчивый — падает сборка
