@@ -7,6 +7,9 @@
   "worktree": {
     "bgIsolation": "none"
   },
+  "env": {
+    "CLAUDE_ENV_FILE": "/home/dyens/.claude/direnv-bash-env.sh"
+  },
   "theme": "auto",
   "enabledPlugins": {
     "mattpocock-skills@claude-plugins-official": true
@@ -15,14 +18,20 @@
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "$HOME/.claude/hooks/notify.sh" }
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/notify.sh"
+          }
         ]
       }
     ],
     "PermissionRequest": [
       {
         "hooks": [
-          { "type": "command", "command": "$HOME/.claude/hooks/notify.sh" }
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/notify.sh"
+          }
         ]
       }
     ]

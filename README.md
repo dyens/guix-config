@@ -131,6 +131,7 @@ startx
 | `files/claude/settings.json` | настройки Claude Code: attribution, worktree, hooks, тема, плагины | — |
 | `files/claude/skills/` | сами скиллы: каталог с `SKILL.md` на каждый | — |
 | `files/claude/hooks/notify.sh` | уведомление в tmux, когда Claude закончил или ждёт разрешения | — |
+| `files/claude/direnv-bash-env.sh` | окружение direnv для инструмента Bash (`CLAUDE_ENV_FILE`) | — |
 | `files/secrets/ssh.yaml` | приватный ключ для GitLab CROC (`croc-gitlab`), зашифрован sops | см. «Ключ для GitLab» |
 | `systems/wg-quick.scm` | WireGuard: конфиг wg-quick из sops + сервис + `/etc/hosts` | — (подключается в `systems/<host>.scm`) |
 | `files/secrets/wg-ruclaw.yaml` | конфиг wg-quick проектной сети ruclaw (с ключом), зашифрован sops | см. «WireGuard» |
@@ -1170,6 +1171,57 @@ files/claude/skills/
 пользователь машины, и лежат в git. Секреты берутся из окружения
 (`JIRA_API_TOKEN`, `GITLAB_TOKEN`) — см. `.envrc` проекта.
 
+### Окружение проекта (direnv) для инструмента Bash
+
+По умолчанию Claude Code не видит программ из `manifest.scm` проекта:
+`python3`, `node`, `go`, `make` — «command not found». Причин две, и обе
+надо знать.
+
+Штатный хук direnv висит на `PROMPT_COMMAND`, а он в неинтерактивном
+шелле не срабатывает вовсе. Плюс сгенерированный Guix `~/.bashrc` для
+неинтерактивных шеллов делает `return 0` в первых же строках — то есть до
+`files/bashrc` дело тоже не доходит.
+
+Лечится файлом `files/claude/direnv-bash-env.sh` и ключом в
+`files/claude/settings.json`:
+
+```json
+"env": {
+  "CLAUDE_ENV_FILE": "/home/dyens/.claude/direnv-bash-env.sh"
+}
+```
+
+Сам файл — одна содержательная строка, `eval "$(direnv export bash)"`.
+
+**Путь только абсолютный** и с именем пользователя: `~` тут не
+раскрывается. Это единственное место в репозитории, где `/home/dyens`
+прибит гвоздями.
+
+#### Почему не BASH_ENV
+
+Напрашивающийся `BASH_ENV` не годится, и это стоит запомнить. Claude Code
+перед командой источит свой снимок шелла
+(`~/.claude/shell-snapshots/snapshot-bash-*.sh`), **последняя строка**
+которого — жёсткий `export PATH=…`. А `BASH_ENV` bash читает при старте
+шелла, то есть ДО снимка. Проверено на t1: обычные переменные окружения
+при таком подходе доживают, а каталоги проекта из `PATH` исчезают — то
+есть не работает ровно то, ради чего всё затевалось.
+
+`CLAUDE_ENV_FILE` источится ПОСЛЕ снимка, поэтому `PATH` там правится
+безнаказанно. По той же причине не нужно руками возвращать «хвост»
+`PATH`: каталоги из снимка (включая `~/.claude/plugins/…/bin`) на момент
+вызова уже на месте, direnv берёт их за свой «до» и сохраняет.
+
+#### Проверить
+
+Из каталога проекта:
+
+```sh
+claude -p "Выполни: command -v python3 node go make" --allowedTools Bash
+```
+
+Должны отдаться пути вида `/gnu/store/…-profile/bin/…`, а не «не найдено».
+
 ### Уведомления Claude Code
 
 Claude Code работает в своём окне tmux, вы — в соседнем. Чтобы не
@@ -1625,6 +1677,11 @@ GDM — тяжёлый GNOME-компонент, который тянет по�
 - **Раскладка по слоям**: X — после перелогина, консоль — после reboot,
   GRUB — со следующего поколения.
 - **Dotfiles read-only** после `guix home reconfigure` — правьте `files/`.
+- **`BASH_ENV` не чинит PATH для Claude Code.** Он читается при старте
+  шелла, а Claude Code потом источит свой снимок, последняя строка
+  которого — жёсткий `export PATH=…`. Переменные окружения доживут,
+  каталоги проекта из PATH — нет. Нужен `CLAUDE_ENV_FILE`: он источится
+  после снимка.
 - **У хука Claude Code может не быть `/dev/tty`.** Его запускает сам
   Claude Code, и `printf '\a' >/dev/tty` тихо уходит в никуда — до
   клиента не доезжает ни байта. Внутри tmux звоните в tty панели:

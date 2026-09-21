@@ -48,6 +48,10 @@
   (list (simple-service 'claude-files home-files-service-type
                         `((".claude/settings.json"
                            ,(local-file "../files/claude/settings.json"))
+                          ;; Источается, не исполняется: бит +x не нужен,
+                          ;; поэтому и #:recursive? #t здесь ни к чему.
+                          (".claude/direnv-bash-env.sh"
+                           ,(local-file "../files/claude/direnv-bash-env.sh"))
                           (".claude/skills/implement"
                            ,(local-file "../files/claude/skills/implement"
                                         #:recursive? #t))
