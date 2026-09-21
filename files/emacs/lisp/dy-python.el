@@ -237,6 +237,7 @@
     (pyvenv-activate (expand-file-name (or venv-dir-name ".venv") (dy-pytest--root))))
   (defun pipenvenv () (interactive) (setenv "WORKON_HOME" (expand-file-name "~/.local/share/virtualenvs")))
   (defun poetryenv () (interactive) (setenv "WORKON_HOME" (expand-file-name "~/.cache/pypoetry/virtualenvs/")))
-  (poetryenv))
+;;  (poetryenv)
+)
 
 (provide 'dy-python)
