@@ -22,6 +22,7 @@
   #:use-module (sops secrets)                ; sops-secret      — канал sops-guix
   #:use-module (sops home services sops)     ; home-sops-secrets-service-type
   #:use-module (packages claude-code)        ; см. packages/claude-code.scm
+  #:use-module (packages glab)               ; GitLab CLI, см. packages/glab.scm
   #:use-module (home emacs)                  ; Emacs и его конфиг
   #:use-module (home xray)                   ; VPN-клиент
   #:use-module (home docker)                 ; плагины docker compose/buildx
@@ -48,12 +49,16 @@
    (permissions #o400)))
 
 (define %programming-packages
-  (cons
+  (cons*
    ;; Проприетарный бинарник, переупакованный под Guix.
    ;; Версия зафиксирована хешем — см. packages/claude-code.scm.
    claude-code
+   ;; GitLab CLI: в Guix его нет, берём статический бинарник релиза.
+   ;; Нужен слэш-команде /review, GitHub-половину закрывает github-cli.
+   glab
    (map specification->package
         '("git"
+          "github-cli"                          ; gh — для /review
           "ripgrep"
           "fd"
           "htop"

@@ -123,6 +123,7 @@ startx
 | `files/emacs/` | конфиг Emacs → `~/.config/emacs` | — |
 | `packages/claude-code.scm` | проприетарный бинарник, переупакованный под Guix | — (подключается модулем) |
 | `packages/xray.scm` | Xray-core, статический бинарник релиза | — (подключается модулем) |
+| `packages/glab.scm` | GitLab CLI, статический бинарник релиза | — (подключается модулем) |
 | `packages/docker.scm` | Docker Engine 29, compose, buildx — статические бинарники | — (подключается модулем) |
 | `systems/docker.scm` | сервис dockerd + группа docker | — (подключается в `systems/<host>.scm`) |
 | `systems/fhs.scm` | `/lib64/ld-linux-x86-64.so.2` для бинарников не из Guix | — (подключается модулем) |
@@ -1235,11 +1236,23 @@ files/claude/commands/
 Симлинкуется **файл**, а не каталог `commands`: так рядом можно положить
 локальную команду, не трогая репозиторий.
 
-`/review` опирается на `gh` и `glab`. В профиле их сейчас нет, а в Guix
-есть только `github-cli` (2.83.2) — `glab` не упакован вовсе. То есть на
-t1 команда в нынешнем виде не отработает; для GitLab понадобится либо
-бинарный релиз `glab` (он заработает благодаря `/lib64`, см. «Готовые
-бинарники не из Guix»), либо `glab` придётся упаковать.
+`/review` опирается на `gh` и `glab`, оба в профиле (`home/base.scm`):
+
+- `gh` — штатный `github-cli` из Guix. Печатает пустую версию
+  (`gh version` без числа) — так собран пакет, сам бинарник рабочий;
+- `glab` — в Guix его нет ни под каким именем, поэтому статический
+  бинарник релиза, `packages/glab.scm`, по образцу `packages/xray.scm`.
+
+Ассеты `glab` лежат не в `/-/releases/…/downloads/`, как у большинства
+проектов, а в generic-пакетах:
+
+```
+https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/packages/generic/glab/<версия>/glab_<версия>_linux_amd64.tar.gz
+```
+
+Бинарник чистый Go и статически слинкован (`patchelf --print-interpreter`
+не находит `.interp`), так что ни загрузчик из `systems/fhs.scm`, ни
+patchelf ему не нужны.
 
 ### Окружение проекта (direnv) для инструмента Bash
 
