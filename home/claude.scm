@@ -1,7 +1,9 @@
-;;; Своё хозяйство Claude Code: настройки, скиллы, хук уведомлений.
+;;; Своё хозяйство Claude Code: настройки, скиллы, слэш-команды,
+;;; хук уведомлений.
 ;;;
 ;;;     files/claude/settings.json -> ~/.claude/settings.json
 ;;;     files/claude/skills        -> ~/.claude/skills
+;;;     files/claude/commands      -> ~/.claude/commands
 ;;;     files/claude/hooks         -> ~/.claude/hooks
 ;;;
 ;;; settings.json — read-only симлинк в стор, со всеми вытекающими: сам
@@ -52,6 +54,11 @@
                           ;; поэтому и #:recursive? #t здесь ни к чему.
                           (".claude/direnv-bash-env.sh"
                            ,(local-file "../files/claude/direnv-bash-env.sh"))
+                          ;; Слэш-команда /review. Симлинкуем ФАЙЛ, а не
+                          ;; каталог commands: пусть рядом можно будет
+                          ;; положить локальную команду, не трогая репозиторий.
+                          (".claude/commands/review.md"
+                           ,(local-file "../files/claude/commands/review.md"))
                           (".claude/skills/implement"
                            ,(local-file "../files/claude/skills/implement"
                                         #:recursive? #t))

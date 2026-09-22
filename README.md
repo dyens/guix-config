@@ -131,6 +131,7 @@ startx
 | `home/claude.scm` | Claude Code: `settings.json`, скиллы, хук уведомлений (входит в base) | — |
 | `files/claude/settings.json` | настройки Claude Code: attribution, worktree, hooks, тема, плагины | — |
 | `files/claude/skills/` | сами скиллы: каталог с `SKILL.md` на каждый | — |
+| `files/claude/commands/` | слэш-команды: файл на команду (`/review`) | — |
 | `files/claude/hooks/notify.sh` | уведомление в tmux, когда Claude закончил или ждёт разрешения | — |
 | `files/claude/direnv-bash-env.sh` | окружение direnv для инструмента Bash (`CLAUDE_ENV_FILE`) | — |
 | `files/secrets/ssh.yaml` | приватный ключ для GitLab CROC (`croc-gitlab`), зашифрован sops | см. «Ключ для GitLab» |
@@ -1220,6 +1221,25 @@ files/claude/skills/
 Токенам в скиллах не место: они уезжают в стор, который читает любой
 пользователь машины, и лежат в git. Секреты берутся из окружения
 (`JIRA_API_TOKEN`, `GITLAB_TOKEN`) — см. `.envrc` проекта.
+
+### Слэш-команды
+
+Команда — markdown-файл в `~/.claude/commands`, имя файла становится
+именем команды. Свои лежат в `files/claude/commands/`.
+
+```
+files/claude/commands/
+  review.md      /review — обзор PR на GitHub или MR на GitLab
+```
+
+Симлинкуется **файл**, а не каталог `commands`: так рядом можно положить
+локальную команду, не трогая репозиторий.
+
+`/review` опирается на `gh` и `glab`. В профиле их сейчас нет, а в Guix
+есть только `github-cli` (2.83.2) — `glab` не упакован вовсе. То есть на
+t1 команда в нынешнем виде не отработает; для GitLab понадобится либо
+бинарный релиз `glab` (он заработает благодаря `/lib64`, см. «Готовые
+бинарники не из Guix»), либо `glab` придётся упаковать.
 
 ### Окружение проекта (direnv) для инструмента Bash
 
