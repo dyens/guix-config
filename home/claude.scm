@@ -1,10 +1,8 @@
-;;; Своё хозяйство Claude Code: настройки, скиллы, слэш-команды,
-;;; хук уведомлений.
+;;; Своё хозяйство Claude Code: настройки, скиллы, слэш-команды.
 ;;;
 ;;;     files/claude/settings.json -> ~/.claude/settings.json
 ;;;     files/claude/skills        -> ~/.claude/skills
 ;;;     files/claude/commands      -> ~/.claude/commands
-;;;     files/claude/hooks         -> ~/.claude/hooks
 ;;;
 ;;; settings.json — read-only симлинк в стор, со всеми вытекающими: сам
 ;;; Claude Code в него больше не запишет. Значит тема и список включённых
@@ -12,9 +10,7 @@
 ;;; сохранят. Это осознанный размен, тот же, что с конфигом Emacs.
 ;;;
 ;;; Проверено на t1: с read-only settings.json claude запускается и
-;;; работает штатно, на файл не ругается; хук по пути
-;;; "$HOME/.claude/hooks/notify.sh" из него срабатывает ($HOME
-;;; раскрывается, команда идёт через шелл).
+;;; работает штатно, на файл не ругается.
 ;;;
 ;;; Скилл — это каталог с SKILL.md (и, если нужно, скриптами рядом).
 ;;; Claude Code подхватывает всё, что лежит в ~/.claude/skills.
@@ -70,11 +66,4 @@
                                         #:recursive? #t))
                           (".claude/skills/update-cs-service-on-d3"
                            ,(local-file "../files/claude/skills/update-cs-service-on-d3"
-                                        #:recursive? #t))
-                          ;; #:recursive? #t здесь не ради каталога, а ради
-                          ;; бита +x: без него local-file кладёт одиночный
-                          ;; файл в стор без права на исполнение, и хук
-                          ;; молча не запустится.
-                          (".claude/hooks/notify.sh"
-                           ,(local-file "../files/claude/hooks/notify.sh"
                                         #:recursive? #t))))))
