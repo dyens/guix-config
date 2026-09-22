@@ -131,6 +131,8 @@ startx
 | `home/docker.scm` | плагины `docker compose`/`buildx` в `~/.docker/cli-plugins` (входит в base) | — |
 | `home/ssh.scm` | `~/.ssh/config`, ключ GitLab из sops (входит в base) | — |
 | `home/claude.scm` | Claude Code: `settings.json`, скиллы, хук уведомлений (входит в base) | — |
+| `home/kube.scm` | kubeconfig'и кластеров из sops в `~/k8s` (входит в base) | — |
+| `files/secrets/kube.yaml` | kubeconfig'и, по ключу на кластер, зашифрованы sops | `sops files/secrets/kube.yaml` |
 | `files/claude/settings.json` | настройки Claude Code: attribution, worktree, hooks, тема, плагины | — |
 | `files/claude/skills/` | сами скиллы: каталог с `SKILL.md` на каждый | — |
 | `files/claude/commands/` | слэш-команды: файл на команду (`/review`) | — |
@@ -1069,7 +1071,57 @@ eglot, Python (docstring, pytest, ruff, pyvenv), Go, Rust, org
 AI-пакеты (agent-shell, gptel, ellama, eca), рабочие модули
 (`dy-http`, `dy-kaas`, `dy-t1`, …). Вернуть — см. «Добавить пакет».
 
-### Готовые бинарники не из Guix (uv, npm)
+### Kubeconfig'и кластеров
+
+Конфиги доступа к кластерам — `files/secrets/kube.yaml`, зашифрован sops,
+по ключу на кластер. Раскладывает их `home/kube.scm`:
+
+```
+files/secrets/kube.yaml   ключ <кластер>  ->  ~/k8s/<кластер>.yaml
+```
+
+Переключение — руками, симлинком:
+
+```sh
+ln -sf ~/k8s/<кластер>.yaml ~/.kube/config
+kubectl config get-contexts        # или просто k
+```
+
+### Добавить кластер
+
+Правок в коде НЕ нужно: имена файлов берутся из самого секрета.
+
+```sh
+guix shell sops -- sops files/secrets/kube.yaml   # добавить ключ
+homerec
+```
+
+Работает это так: в sops-файле шифруются только **значения**, а
+верхнеуровневые ключи остаются открытым текстом. Поэтому `home/kube.scm`
+читает список кластеров прямо из зашифрованного файла, без ключа
+расшифровки. Если ключей не нашлось — сборка падает с ошибкой, а не
+создаёт молча ноль секретов.
+
+### Что где лежит
+
+Открытый текст живёт только в tmpfs, `/run/user/<uid>/secrets/`, и не
+переживает перезагрузку. В `~/k8s` лежат **симлинки** на него. Сразу
+после загрузки, пока не отработал home-shepherd, ссылки висят битыми —
+это норма, лечится `herd restart home-sops-secrets`.
+
+Каталог `~/k8s` заводится пустым файлом `k8s/.keep`: sops-guix создаёт
+родительский каталог только для своих служебных ссылок, а для `path`
+зовёт голый `symlink` и упал бы с ENOENT.
+
+### Права 0400
+
+Секреты read-only, поэтому `kubectl config use-context` по ним не
+отработает — он пишет в kubeconfig. При переключении целым файлом это не
+мешает. Если однажды понадобится, `KUBECONFIG` принимает список через
+двоеточие, и записываемый файл надо поставить ПЕРВЫМ: проверено, тогда
+`use-context` пишет в него, а секрет остаётся нетронутым.
+
+## Готовые бинарники не из Guix (uv, npm)
 
 `uv sync` ставит готовые колёса PyPI, а это собранные бинарники. `ruff` —
 24 МБ скомпилированного Rust, прошитого на FHS-путь

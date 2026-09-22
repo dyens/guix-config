@@ -29,6 +29,7 @@
   #:use-module (home docker)                 ; плагины docker compose/buildx
   #:use-module (home wireguard)              ; секреты WireGuard (туннель — в системе)
   #:use-module (home ssh)                    ; ~/.ssh/config, ключ GitLab из sops
+  #:use-module (home kube)                   ; kubeconfig'и кластеров в ~/k8s
   #:use-module (home claude)                 ; свои скиллы Claude Code
   #:export (make-home))
 
@@ -38,10 +39,14 @@
 (define home.yaml
   (local-file "../files/secrets/home.yaml" "home.yaml"))
 
-;; Без поля `path': симлинк sops-guix создаёт только при первом старте,
-;; а при повторном (любой homerec) падает на уже существующей ссылке —
-;; и тянет за собой все секреты. Читаем прямо из
+;; Без поля `path': здесь оно просто не нужно, читаем прямо из
 ;; $XDG_RUNTIME_DIR/secrets/<ключ> (см. files/bashrc, home/xray.scm).
+;;
+;; Раньше тут стояло, что `path' ломается при повторном homerec — падает
+;; на уже существующей ссылке. ЭТО УСТАРЕЛО: в нынешнем sops-guix
+;; активация сначала зовёт sops-secret-cleanup и только потом
+;; sops-secret-create, а cleanup ведёт учёт ссылок в каталоге
+;; .extra-links и снимает прежнюю. На `path' построен home/kube.scm.
 (define (home-secret key)
   "Секрет KEY из home.yaml → $XDG_RUNTIME_DIR/secrets/KEY."
   (sops-secret
@@ -129,5 +134,6 @@
      %docker-cli-services
      %claude-services
      %wireguard-secrets
+     %kube-secrets
      %ssh-services
      extra-services))))
