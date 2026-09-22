@@ -124,6 +124,7 @@ startx
 | `packages/claude-code.scm` | проприетарный бинарник, переупакованный под Guix | — (подключается модулем) |
 | `packages/xray.scm` | Xray-core, статический бинарник релиза | — (подключается модулем) |
 | `packages/glab.scm` | GitLab CLI, статический бинарник релиза | — (подключается модулем) |
+| `packages/kubectl.scm` | клиент Kubernetes, статический бинарник релиза (алиас `k`) | — (подключается модулем) |
 | `packages/docker.scm` | Docker Engine 29, compose, buildx — статические бинарники | — (подключается модулем) |
 | `systems/docker.scm` | сервис dockerd + группа docker | — (подключается в `systems/<host>.scm`) |
 | `systems/fhs.scm` | `/lib64/ld-linux-x86-64.so.2` для бинарников не из Guix | — (подключается модулем) |

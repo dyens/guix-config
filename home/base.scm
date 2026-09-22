@@ -23,6 +23,7 @@
   #:use-module (sops home services sops)     ; home-sops-secrets-service-type
   #:use-module (packages claude-code)        ; см. packages/claude-code.scm
   #:use-module (packages glab)               ; GitLab CLI, см. packages/glab.scm
+  #:use-module (packages kubectl)            ; клиент Kubernetes, см. packages/kubectl.scm
   #:use-module (home emacs)                  ; Emacs и его конфиг
   #:use-module (home xray)                   ; VPN-клиент
   #:use-module (home docker)                 ; плагины docker compose/buildx
@@ -56,6 +57,9 @@
    ;; GitLab CLI: в Guix его нет, берём статический бинарник релиза.
    ;; Нужен слэш-команде /review, GitHub-половину закрывает github-cli.
    glab
+   ;; Клиент Kubernetes: в Guix тоже нет, тоже бинарник релиза.
+   ;; Алиас k -> kubectl — ниже, в home-bash-configuration.
+   kubectl
    (map specification->package
         '("git"
           "github-cli"                          ; gh — для /review
@@ -96,6 +100,7 @@
                  (append
                   '(("ll"  . "ls -alF")
                     ("la"  . "ls -A")
+                    ("k"   . "kubectl")
                     ("gs"  . "git status")
                     ("gd"  . "git diff")
                     ;; sops ищет age-ключ в ~/.config/sops/age/keys.txt,
