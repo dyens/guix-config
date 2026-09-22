@@ -136,6 +136,8 @@ startx
 | `files/claude/settings.json` | настройки Claude Code: attribution, worktree, hooks, тема, плагины | — |
 | `files/claude/skills/` | сами скиллы: каталог с `SKILL.md` на каждый | — |
 | `files/claude/commands/` | слэш-команды: файл на команду (`/review`) | — |
+| `files/claude/hooks/notify.sh` | уведомление в Telegram: Claude закончил или ждёт разрешения | — |
+| `files/secrets/telegram.yaml` | токен бота и chat_id, зашифрованы sops | `sops files/secrets/telegram.yaml` |
 | `files/claude/direnv-bash-env.sh` | окружение direnv для инструмента Bash (`CLAUDE_ENV_FILE`) | — |
 | `files/secrets/ssh.yaml` | приватный ключ для GitLab CROC (`croc-gitlab`), зашифрован sops | см. «Ключ для GitLab» |
 | `systems/wg-quick.scm` | WireGuard: конфиг wg-quick из sops + сервис + `/etc/hosts` | — (подключается в `systems/<host>.scm`) |
@@ -1257,6 +1259,49 @@ claude -p "Выполни: command -v python3 node go make" --allowedTools Bash
 ```
 
 Должны отдаться пути вида `/gnu/store/…-profile/bin/…`, а не «не найдено».
+
+### Уведомления в Telegram
+
+Claude Code работает в своём окне, вы — в другом или вообще не за
+машиной. На события `Stop` (ответ закончен) и `PermissionRequest`
+(упёрся в запрос доступа) `files/claude/hooks/notify.sh` шлёт сообщение
+в Telegram: `t1 · claude готов · ruclaw`.
+
+Звонковая схема (`\a` → tmux → терминал) тут была раньше и **снята**:
+она работала ровно как задумана и всё равно не замечалась, потому что
+требовала смотреть в терминал. Уведомление должно перебивать.
+
+#### Через SOCKS, а не напрямую
+
+С t1 `api.telegram.org` недоступен — соединение отваливается по
+таймауту, при том что другие хосты открываются. Поэтому запрос идёт
+через SOCKS Xray-клиента (`home/xray.scm`, `127.0.0.1:10808`), никаких
+правок в маршрутах системы не нужно.
+
+Следствие: **лежит `xray` — нет уведомлений**. Проверять
+`herd status xray`.
+
+#### Секрет
+
+`files/secrets/telegram.yaml`, ключ `telegram.env`, расшифровывается в
+`/run/user/<uid>/secrets/telegram.env`:
+
+```
+TELEGRAM_BOT_TOKEN=…
+TELEGRAM_CHAT_ID=…
+```
+
+#### Когда «уведомления пропали»
+
+Всё, что не получилось, хук пишет в `~/.cache/claude-notify.log` —
+с вычищенным токеном. Первым делом смотреть туда, а не гадать:
+
+```sh
+tail -5 ~/.cache/claude-notify.log
+```
+
+Типичное: `нет …/telegram.env` (секрет не расшифрован — `herd restart
+home-sops-secrets`) или ответ Telegram с кодом ошибки.
 
 ### settings.json под Guix: чем платим
 

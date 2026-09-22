@@ -1,8 +1,10 @@
-;;; Своё хозяйство Claude Code: настройки, скиллы, слэш-команды.
+;;; Своё хозяйство Claude Code: настройки, скиллы, слэш-команды,
+;;; хук уведомлений в Telegram.
 ;;;
 ;;;     files/claude/settings.json -> ~/.claude/settings.json
 ;;;     files/claude/skills        -> ~/.claude/skills
 ;;;     files/claude/commands      -> ~/.claude/commands
+;;;     files/claude/hooks         -> ~/.claude/hooks
 ;;;
 ;;; settings.json — read-only симлинк в стор, со всеми вытекающими: сам
 ;;; Claude Code в него больше не запишет. Значит тема и список включённых
@@ -66,4 +68,11 @@
                                         #:recursive? #t))
                           (".claude/skills/update-cs-service-on-d3"
                            ,(local-file "../files/claude/skills/update-cs-service-on-d3"
+                                        #:recursive? #t))
+                          ;; #:recursive? #t здесь не ради каталога, а ради
+                          ;; бита +x: без него local-file кладёт одиночный
+                          ;; файл в стор без права на исполнение, и хук
+                          ;; молча не запустится.
+                          (".claude/hooks/notify.sh"
+                           ,(local-file "../files/claude/hooks/notify.sh"
                                         #:recursive? #t))))))
