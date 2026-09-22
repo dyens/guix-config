@@ -30,6 +30,7 @@
   #:use-module (home wireguard)              ; секреты WireGuard (туннель — в системе)
   #:use-module (home ssh)                    ; ~/.ssh/config, ключ GitLab из sops
   #:use-module (home kube)                   ; kubeconfig'и кластеров в ~/k8s
+  #:use-module (home telegram)               ; секрет бота для уведомлений
   #:use-module (home claude)                 ; свои скиллы Claude Code
   #:export (make-home))
 
@@ -135,5 +136,6 @@
      %claude-services
      %wireguard-secrets
      %kube-secrets
+     %telegram-secrets
      %ssh-services
      extra-services))))
