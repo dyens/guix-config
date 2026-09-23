@@ -8,18 +8,30 @@
 ;;; kube.yaml. В sops-файле шифруются только ЗНАЧЕНИЯ, верхнеуровневые
 ;;; ключи остаются открытым текстом — поэтому перечислить кластеры можно,
 ;;; не имея ключа расшифровки. Добавить кластер = добавить ключ в секрет
-;;; (`sops files/secrets/kube.yaml`) и сделать homerec, правок здесь не
+;;; (`sops files/secrets/kube.yaml') и сделать homerec, правок здесь не
 ;;; нужно.
 ;;;
 ;;; Цикл по именам тут законен, в отличие от home/claude.scm: local-file
-;;; один и тот же на все секреты, а меняются только строки key и path.
+;;; один и тот же на все секреты, меняется только строка key.
 ;;;
-;;; Почему поле `path' — хотя в home/base.scm написано, что оно ломается
-;;; при повторном homerec. Тот комментарий устарел: в нынешнем sops-guix
-;;; активация сначала зовёт sops-secret-cleanup, и только потом
-;;; sops-secret-create (sops/activation.scm), а cleanup ведёт учёт ссылок
-;;; в каталоге .extra-links и снимает прежний симлинк перед созданием
-;;; нового. То есть path идемпотентен.
+;;; ПОЧЕМУ НЕ ПОЛЕ `path' У SOPS-SECRET, хотя оно ровно для этого.
+;;;
+;;; Оно работает в пределах одной загрузки и ломается после следующей.
+;;; sops ведёт учёт своих ссылок в каталоге .extra-links ВНУТРИ каталога
+;;; секретов, то есть в tmpfs /run/user/<uid>/, а сами ссылки кладёт в
+;;; $HOME. Перезагрузка стирает tmpfs: учёт пропадает, ссылки в ~/k8s
+;;; остаются. Дальше cleanup их не находит, а create падает на
+;;;
+;;;     In procedure symlink: File exists
+;;;
+;;; и падает уже навсегда. А так как от home-sops-secrets зависит xray,
+;;; вместе с ним ложится и VPN. Проверено на t1 ценой лежащего VPN.
+;;;
+;;; Поэтому ссылки создаём сами, в активации, идемпотентно: сначала
+;;; удалить, потом создать. Цель ссылки — фиксированный путь, от наличия
+;;; расшифрованного файла она не зависит и спокойно висит битой до старта
+;;; home-shepherd. Заодно ушёл прибитый гвоздями /home/dyens: активация
+;;; берёт $HOME и getuid.
 ;;;
 ;;; Сам открытый текст лежит в tmpfs (/run/user/<uid>/secrets/), а в ~/k8s
 ;;; попадают симлинки на него. После перезагрузки до старта home-shepherd
@@ -38,11 +50,6 @@
   #:use-module (sops secrets)
   #:use-module (sops home services sops)
   #:export (%kube-secrets))
-
-;; Абсолютный путь обязателен: `~' в поле path не раскрывается. Второе и
-;; последнее место в репозитории, где имя пользователя прибито гвоздями
-;; (первое — CLAUDE_ENV_FILE в files/claude/settings.json).
-(define %kube-directory "/home/dyens/k8s")
 
 (define %kube-secrets-file "files/secrets/kube.yaml")
 
@@ -77,19 +84,37 @@
       names)))
 
 (define (kubeconfig-secret name)
+  ;; Без поля `path' — см. преамбулу. Файл появляется в
+  ;; /run/user/<uid>/secrets/<имя>, ссылку на него делаем сами.
   (sops-secret
    (key (list name))
    (file kube.yaml)
-   (permissions #o400)
-   (path (string-append %kube-directory "/" name ".yaml"))))
+   (permissions #o400)))
 
 (define %kube-secrets
-  (list
-   ;; Каталог должен существовать заранее: sops-guix создаёт родителя
-   ;; только для своих служебных ссылок, а для path зовёт голый symlink
-   ;; и упал бы с ENOENT. Пустой .keep гарантирует ~/k8s.
-   (simple-service 'kube-directory home-files-service-type
-                   `(("k8s/.keep" ,(plain-file "kube-keep" ""))))
+  (let ((names (kubeconfig-names)))
+    (list
+     ;; Ссылки ~/k8s/<кластер>.yaml -> /run/user/<uid>/secrets/<кластер>.
+     ;; Сначала удаляем, потом создаём: активация должна проходить сколько
+     ;; угодно раз подряд. delete-file на несуществующем бросает исключение,
+     ;; на битой ссылке — работает, поэтому просто ловим и игнорируем.
+     (simple-service
+      'kube-links home-activation-service-type
+      #~(let ((dir (string-append (getenv "HOME") "/k8s"))
+              (secrets (string-append "/run/user/"
+                                      (number->string (getuid))
+                                      "/secrets")))
+          (unless (file-exists? dir)
+            (mkdir dir #o755))
+          (for-each
+           (lambda (name)
+             (let ((link (string-append dir "/" name ".yaml"))
+                   (target (string-append secrets "/" name)))
+               (catch #t
+                 (lambda () (delete-file link))
+                 (lambda _ #t))
+               (symlink target link)))
+           (list #$@names))))
 
-   (simple-service 'kube-secrets home-sops-secrets-service-type
-                   (map kubeconfig-secret (kubeconfig-names)))))
+     (simple-service 'kube-secrets home-sops-secrets-service-type
+                     (map kubeconfig-secret names)))))

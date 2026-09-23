@@ -40,14 +40,15 @@
 (define home.yaml
   (local-file "../files/secrets/home.yaml" "home.yaml"))
 
-;; Без поля `path': здесь оно просто не нужно, читаем прямо из
-;; $XDG_RUNTIME_DIR/secrets/<ключ> (см. files/bashrc, home/xray.scm).
+;; Без поля `path': читаем прямо из $XDG_RUNTIME_DIR/secrets/<ключ>
+;; (см. files/bashrc, home/xray.scm).
 ;;
-;; Раньше тут стояло, что `path' ломается при повторном homerec — падает
-;; на уже существующей ссылке. ЭТО УСТАРЕЛО: в нынешнем sops-guix
-;; активация сначала зовёт sops-secret-cleanup и только потом
-;; sops-secret-create, а cleanup ведёт учёт ссылок в каталоге
-;; .extra-links и снимает прежнюю. На `path' построен home/kube.scm.
+;; `path' не использовать. Он создаёт ссылку в $HOME, а учёт этих ссылок
+;; ведёт в .extra-links ВНУТРИ каталога секретов, то есть в tmpfs.
+;; Перезагрузка стирает tmpfs, ссылки в $HOME остаются — и sops-secret-create
+;; навсегда падает на «In procedure symlink: File exists», утягивая за
+;; собой home-sops-secrets, а с ним и xray. Подробности и обходной путь
+;; (ссылки делает своя активация) — в home/kube.scm.
 (define (home-secret key)
   "Секрет KEY из home.yaml → $XDG_RUNTIME_DIR/secrets/KEY."
   (sops-secret
