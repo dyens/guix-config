@@ -25,6 +25,35 @@ export DISABLE_UPDATES=1
 # при входе в каталог. direnv ставит home/emacs.scm (он нужен и Emacs).
 command -v direnv >/dev/null && eval "$(direnv hook bash)"
 
+# Автодополнение kubectl, в том числе для алиаса k.
+#
+# Кэшируем. `kubectl completion bash' генерирует 17 КБ скрипта и стоит
+# ~40 мс на КАЖДЫЙ интерактивный шелл (замерено на t1), а в tmux их
+# открывается много; чтение готового файла — пара миллисекунд.
+#
+# Ключ кэша — путь kubectl в сторе: он меняется при обновлении пакета,
+# и кэш протухает сам. По mtime сравнивать нельзя, у всех файлов стора
+# он нулевой (1970). Пишем через временный файл и mv, чтобы оборванный
+# шелл не оставил обрезанный кэш.
+#
+# Дополнение опирается на _init_completion из bash-completion: на Guix
+# System он приезжает через /etc/bashrc.d, на чужом дистрибутиве может
+# не оказаться — тогда просто не сработает дополнение, шелл цел.
+if command -v kubectl >/dev/null 2>&1; then
+    _kc_src=$(readlink -f "$(command -v kubectl)")
+    _kc="${XDG_CACHE_HOME:-$HOME/.cache}/kubectl-completion.bash"
+    if [ "$(head -1 "$_kc" 2>/dev/null)" != "# $_kc_src" ]; then
+        mkdir -p "$(dirname "$_kc")" 2>/dev/null
+        { printf '# %s\n' "$_kc_src"; kubectl completion bash; } \
+            > "$_kc.tmp" 2>/dev/null && mv -f "$_kc.tmp" "$_kc" 2>/dev/null
+    fi
+    if [ -s "$_kc" ]; then
+        . "$_kc"
+        complete -o default -F __start_kubectl k
+    fi
+    unset _kc _kc_src
+fi
+
 # Локальные настройки и СЕКРЕТЫ.
 #
 # Этот файл (files/bashrc) уезжает в /gnu/store, который читается любым
