@@ -68,4 +68,12 @@
                      (identity-file (identity-file-for "croc-gitlab"))
                      ;; Только этот ключ: иначе ssh перебирает все из агента
                      ;; и ~/.ssh/id_*, и GitLab может отбить по числу попыток.
+                     (extra-content "  IdentitiesOnly yes\n"))
+                    (openssh-host
+                     (name "vm-gpu")
+                     (host-name "172.31.16.27")
+                     (user "ec2-user")
+                     (identity-file (identity-file-for "ruclaw-test-deploy"))
+                     ;; Только этот ключ: иначе ssh перебирает все из агента
+                     ;; и ~/.ssh/id_*, и GitLab может отбить по числу попыток.
                      (extra-content "  IdentitiesOnly yes\n"))))))))
