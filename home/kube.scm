@@ -45,43 +45,22 @@
   #:use-module (gnu home services)
   #:use-module (gnu services)
   #:use-module (guix gexp)
-  #:use-module (ice-9 rdelim)
-  #:use-module (ice-9 regex)
+  #:use-module (home secrets)
   #:use-module (sops secrets)
   #:use-module (sops home services sops)
   #:export (%kube-secrets))
-
-(define %kube-secrets-file "files/secrets/kube.yaml")
 
 (define kube.yaml
   (local-file "../files/secrets/kube.yaml" "kube.yaml"))
 
 (define (kubeconfig-names)
-  "Имена кластеров — верхнеуровневые ключи файла секретов, кроме
-служебного блока sops."
-  (let ((file (search-path %load-path %kube-secrets-file)))
-    (unless file
-      (error "не нашёл в %load-path:" %kube-secrets-file))
-    (let ((names
-           (call-with-input-file file
-             (lambda (port)
-               (let loop ((names '()))
-                 (let ((line (read-line port)))
-                   (if (eof-object? line)
-                       (reverse names)
-                       (let ((m (string-match "^([^ \t#][^:]*):" line)))
-                         (loop (if (and m
-                                        (not (string=? (match:substring m 1)
-                                                       "sops")))
-                                   (cons (match:substring m 1) names)
-                                   names))))))))))
-      ;; Падать громко. Пустой список означал бы, что секретов просто не
-      ;; будет создано, и узнали бы мы об этом в лучшем случае при первом
-      ;; kubectl. Так уже вышло однажды с systems/base.scm: правка молча
-      ;; не влияла ни на что (см. «Грабли»).
-      (when (null? names)
-        (error "не нашёл ни одного кластера в" file))
-      names)))
+  "Имена кластеров = ключи секрета, см. home/secrets.scm."
+  (let ((names (secret-keys (local-file-absolute-file-name kube.yaml))))
+    ;; Падать громко: пустой список означал бы, что секретов просто не
+    ;; создано, и узнали бы мы об этом при первом kubectl.
+    (when (null? names)
+      (error "не нашёл ни одного кластера в files/secrets/kube.yaml"))
+    names))
 
 (define (kubeconfig-secret name)
   ;; Без поля `path' — см. преамбулу. Файл появляется в
@@ -108,7 +87,9 @@
             (mkdir dir #o755))
           (for-each
            (lambda (name)
-             (let ((link (string-append dir "/" name ".yaml"))
+             ;; basename: ключ "kube/ruclaw-dev" даёт ~/k8s/ruclaw-dev.yaml,
+             ;; а цель — secrets/kube/ruclaw-dev.
+             (let ((link (string-append dir "/" (basename name) ".yaml"))
                    (target (string-append secrets "/" name)))
                (catch #t
                  (lambda () (delete-file link))
