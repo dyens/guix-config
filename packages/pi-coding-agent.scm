@@ -8,9 +8,7 @@
 ;;;
 ;;; Бинарник собран под FHS и ищет /lib64/ld-linux-x86-64.so.2. В наших
 ;;; системах этот путь даёт systems/fhs.scm; сам ELF не патчим, потому что
-;;; Bun-compiled executable после patchelf падает при старте. Запускаем через
-;;; wrapper, который добавляет профильные lib/ в LD_LIBRARY_PATH: там лежит
-;;; libgcc_s.so.1 из gcc-toolchain, без него pthread_exit падает во время OAuth/login.
+;;; Bun-compiled executable после patchelf падает при старте.
 
 (define-module (packages pi-coding-agent)
   #:use-module (guix build-system gnu)
@@ -45,29 +43,19 @@
           ;; artifact; stripping or patchelf'ing it makes it crash at startup.
           (delete 'strip)
           ;; It intentionally keeps the upstream /lib64 interpreter; our
-          ;; systems/base.scm provides that FHS loader path. The wrapper in
-          ;; bin/pi is a shell script, so there is no Guix-patched ELF here.
+          ;; systems/base.scm provides that FHS loader path.
           (delete 'validate-runpath)
           (replace 'install
             (lambda* (#:key outputs #:allow-other-keys)
               (let* ((out (assoc-ref outputs "out"))
                      (bin (string-append out "/bin"))
                      (share (string-append out "/share/pi-coding-agent"))
-                     (exe (string-append share "/pi"))
-                     (wrapper (string-append bin "/pi")))
+                     (exe (string-append share "/pi")))
                 (mkdir-p share)
                 (copy-recursively "." share)
                 (chmod exe #o755)
                 (mkdir-p bin)
-                (call-with-output-file wrapper
-                  (lambda (port)
-                    (format port "#!/bin/sh
-home=${HOME:-}
-export LD_LIBRARY_PATH=${home:+$home/.guix-home/profile/lib:$home/.guix-profile/lib:}/run/current-system/profile/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-exec ~s \"$@\"
-"
-                            exe)))
-                (chmod wrapper #o555)))))))
+                (symlink exe (string-append bin "/pi"))))))))
     (supported-systems '("x86_64-linux"))
     (home-page "https://pi.dev")
     (synopsis "Агентский CLI для программирования Pi")

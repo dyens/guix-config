@@ -1555,21 +1555,33 @@ tun2socks — в Xray есть свой tun-вход:
 
 | Часть | Где | Секреты |
 |---|---|---|
-| Xray-клиент, SOCKS `127.0.0.1:10808` | `home/xray.scm`, входит в `make-home` — есть и в `programming`, и в `dyens` | конфиг — `files/secrets/xray.yaml` |
+| Xray-клиент timeweb, SOCKS `127.0.0.1:10808` | `home/xray.scm`, сервис `xray`, стартует по умолчанию | ключ `xray.json` в `files/secrets/xray.yaml` |
+| Xray-клиент fornex, тот же SOCKS `127.0.0.1:10808` | `home/xray.scm`, сервис `xray-fornex`, вручную вместо `xray` | ключ `xray-fornex.json` в `files/secrets/xray.yaml` |
 | tun `xray0` + `ip route` на список адресов | `systems/xray-tun.scm`, подключается в `systems/<host>.scm` (сейчас — `t1.scm`) | нет |
 
-Через VPN идут только адреса из списка в `t1.scm` (сейчас подсеть
-Anthropic — для Claude Code — и адрес из `net.sh`). Остальное, включая
+Через VPN идут только адреса из списка в `t1.scm` (подсеть Anthropic для
+Claude Code плюс адреса из `/home/dyens/vpn/dyvpn/net.sh`). Остальное, включая
 трафик к самому VPN-серверу, — напрямую; поэтому петли нет. Не добавляйте
 в список адрес VPN-сервера и не заворачивайте `0.0.0.0/0` — потеряете
 сеть, а на облачной VM и ssh. Программы с поддержкой прокси могут
 ходить в SOCKS напрямую: `socks5://127.0.0.1:10808`.
 
+Переключение сервера вручную:
+
+```sh
+herd stop xray
+herd start xray-fornex
+# обратно на дефолтный timeweb:
+herd stop xray-fornex
+herd start xray
+```
+
 ### Секрет с конфигом (один раз, на хосте)
 
 Конфиг клиента — обычный JSON Xray. В репозиторий он попадает только
-зашифрованным: ключ `xray.json` в `files/secrets/xray.yaml`. Открытый
-текст на диск не пишется; заодно `loglevel` понижается с `debug`, иначе
+зашифрованным: ключи `xray.json` (timeweb) и `xray-fornex.json` (fornex)
+в `files/secrets/xray.yaml`. Открытый текст на диск не пишется; заодно
+`loglevel` понижается с `debug`, иначе
 лог сервиса растёт без конца:
 
 ```sh
@@ -1596,13 +1608,15 @@ homerec     # home: сервис xray (пользователь)
 Проверка:
 
 ```sh
-herd status xray                     # клиент, без sudo
+herd status xray                     # дефолтный клиент timeweb, без sudo
+herd status xray-fornex              # запасной клиент fornex, без sudo
 sudo herd status xray-tun            # tun
 ip route get 160.79.104.10           # … dev xray0
 curl -sI https://api.anthropic.com | head -1
 ```
 
-Логи: `~/.local/state/xray.log` (клиент), `/var/log/xray-tun.log` (tun).
+Логи: `~/.local/state/xray.log` (timeweb), `~/.local/state/xray-fornex.log`
+(fornex), `/var/log/xray-tun.log` (tun).
 
 Если что-то не так, сначала разделить: сам VPN или tun?
 
