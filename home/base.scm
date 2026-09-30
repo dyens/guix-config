@@ -1,8 +1,8 @@
 ;;; Общая часть домашнего окружения: всё, что нужно для программирования
 ;;; на любой машине, с графикой или без.
 ;;;
-;;; Здесь: vim, Emacs (home/emacs.scm), git, tmux, Claude Code, bash, секреты,
-;;; VPN-клиент Xray (home/xray.scm). Графика (i3, шрифты, startx) сюда НЕ
+;;; Здесь: vim, Emacs (home/emacs.scm), git, tmux, Claude Code, Pi, bash,
+;;; секреты, VPN-клиент Xray (home/xray.scm). Графика (i3, шрифты, startx) сюда НЕ
 ;;; входит — её добавляет home/dyens.scm через #:extra-packages / #:extra-services.
 ;;;
 ;;; Точки входа:
@@ -22,6 +22,7 @@
   #:use-module (sops secrets)                ; sops-secret      — канал sops-guix
   #:use-module (sops home services sops)     ; home-sops-secrets-service-type
   #:use-module (packages claude-code)        ; см. packages/claude-code.scm
+  #:use-module (packages pi-coding-agent)    ; см. packages/pi-coding-agent.scm
   #:use-module (packages glab)               ; GitLab CLI, см. packages/glab.scm
   #:use-module (packages kubectl)            ; клиент Kubernetes, см. packages/kubectl.scm
   #:use-module (home emacs)                  ; Emacs и его конфиг
@@ -32,6 +33,7 @@
   #:use-module (home kube)                   ; kubeconfig'и кластеров в ~/k8s
   #:use-module (home telegram)               ; секрет бота для уведомлений
   #:use-module (home claude)                 ; свои скиллы Claude Code
+  #:use-module (home pi)                     ; Pi packages/extensions
   #:export (make-home))
 
 ;; Зашифрованные секреты. В стор уезжает только шифротекст, открытый
@@ -61,6 +63,9 @@
    ;; Проприетарный бинарник, переупакованный под Guix.
    ;; Версия зафиксирована хешем — см. packages/claude-code.scm.
    claude-code
+   ;; Pi coding agent: официальный standalone-бинарник релиза.
+   ;; Версия зафиксирована хешем — см. packages/pi-coding-agent.scm.
+   pi-coding-agent
    ;; GitLab CLI: в Guix его нет, берём статический бинарник релиза.
    ;; Нужен слэш-команде /review, GitHub-половину закрывает github-cli.
    glab
@@ -75,6 +80,8 @@
           "htop"
           "curl"
           "unzip"
+          ;; Нужен `pi install' / `pi update --extensions' для npm: Pi packages.
+          "node"
           "vim"
           "tmux"))))
 
@@ -139,4 +146,5 @@
      %kube-secrets
      %telegram-secrets
      %ssh-services
+     %pi-services
      extra-services))))

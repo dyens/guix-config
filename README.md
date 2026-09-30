@@ -115,13 +115,14 @@ startx
 | `systems/vm.scm` | dev-VM под QEMU | `sudo -i guix system reconfigure` |
 | `systems/laptop.scm` | заготовка для физической машины (UEFI) | `sudo -i guix system reconfigure` |
 | `systems/t1.scm` | облачная VM: минимальный сервер, из него собирается образ | `guix system image`, см. «Облачная VM» |
-| `home/base.scm` | общая часть home: vim, git, tmux, Claude Code, bash, секреты | — (подключается модулем) |
+| `home/base.scm` | общая часть home: vim, git, tmux, Claude Code, Pi, bash, секреты | — (подключается модулем) |
 | `home/programming.scm` | home для программирования без графики (облачные VM) | `guix home reconfigure` |
 | `home/dyens.scm` | home с графикой: base + i3, шрифты, startx | `guix home reconfigure` |
 | `home/emacs.scm` | Emacs: пакеты из Guix + конфиг `files/emacs` (входит в base) | — (подключается модулем) |
 | `home/emacs-manifest.scm` | тот же Emacs без guix home — попробовать на любой машине | `guix shell -m` |
 | `files/emacs/` | конфиг Emacs → `~/.config/emacs` | — |
 | `packages/claude-code.scm` | проприетарный бинарник, переупакованный под Guix | — (подключается модулем) |
+| `packages/pi-coding-agent.scm` | Pi coding agent, standalone-бинарник релиза, переупакованный под Guix | — (подключается модулем) |
 | `packages/xray.scm` | Xray-core, статический бинарник релиза | — (подключается модулем) |
 | `packages/glab.scm` | GitLab CLI, статический бинарник релиза | — (подключается модулем) |
 | `packages/kubectl.scm` | клиент Kubernetes, статический бинарник релиза (алиас `k`) | — (подключается модулем) |
@@ -131,6 +132,7 @@ startx
 | `home/docker.scm` | плагины `docker compose`/`buildx` в `~/.docker/cli-plugins` (входит в base) | — |
 | `home/ssh.scm` | `~/.ssh/config`, ключ GitLab из sops (входит в base) | — |
 | `home/claude.scm` | Claude Code: `settings.json`, скиллы, хук уведомлений (входит в base) | — |
+| `home/pi.scm` | Pi packages/extensions: `npm:pi-subagents`, `npm:pi-web-access` (входит в base) | `pi update --extensions` |
 | `home/kube.scm` | kubeconfig'и кластеров из sops в `~/k8s` (входит в base) | — |
 | `files/secrets/kube.yaml` | kubeconfig'и, по ключу на кластер, зашифрованы sops | `sops files/secrets/kube.yaml` |
 | `files/claude/settings.json` | настройки Claude Code: attribution, worktree, hooks, тема, плагины | — |
@@ -244,6 +246,34 @@ Guix скачает файл и напечатает ожидаемый хеш �
 Версия пиннится хешем, поэтому `guix time-machine` возвращает именно ту
 версию Claude Code, что была на момент коммита, — в отличие от обычной
 установки, которая обновляет себя в фоне.
+
+### Обновить Pi coding agent
+
+`packages/pi-coding-agent.scm` берёт официальный standalone-архив
+`pi-linux-x64.tar.gz` из GitHub Releases. ELF не патчим: Bun-compiled
+бинарник после `patchelf` падает при старте, поэтому он опирается на
+`/lib64/ld-linux-x86-64.so.2` из `systems/fhs.scm`. Для обновления
+поменяйте `version`, поставьте временно невалидный `sha256` и запустите
+сборку — Guix напечатает ожидаемый хеш:
+
+```sh
+guix home build -L . home/programming.scm
+```
+
+После замены хеша проверьте:
+
+```sh
+guix build -L . pi-coding-agent
+```
+
+Нужные расширения Pi задаёт `home/pi.scm`: `npm:pi-subagents` и
+`npm:pi-web-access`. При активации home они устанавливаются через
+`pi install`, если ещё не прописаны в `~/.pi/agent/settings.json`. Если
+активация была без сети или npm-пакеты надо освежить:
+
+```sh
+pi update --extensions
+```
 
 ---
 
