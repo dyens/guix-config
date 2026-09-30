@@ -117,6 +117,7 @@
                   '(("ll"  . "ls -alF")
                     ("la"  . "ls -A")
                     ("k"   . "kubectl")
+                    ("pi-ruclaw" . "cd /home/dyens/dev/croc/ruclaw && pi --skill /home/dyens/.config/pi-ruclaw/skills")
                     ("gs"  . "git status")
                     ("gd"  . "git diff")
                     ;; sops ищет age-ключ в ~/.config/sops/age/keys.txt,

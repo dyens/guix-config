@@ -132,7 +132,8 @@ startx
 | `home/docker.scm` | плагины `docker compose`/`buildx` в `~/.docker/cli-plugins` (входит в base) | — |
 | `home/ssh.scm` | `~/.ssh/config`, ключ GitLab из sops (входит в base) | — |
 | `home/claude.scm` | Claude Code: `settings.json`, скиллы, хук уведомлений (входит в base) | — |
-| `home/pi.scm` | Pi packages/extensions: `npm:pi-subagents`, `npm:pi-web-access` (входит в base) | `pi update --extensions` |
+| `home/pi.scm` | Pi packages/extensions: `npm:pi-subagents`, `npm:pi-web-access`, ruclaw skills (входит в base) | `pi update --extensions` |
+| `files/pi-ruclaw/skills/` | свои Pi skills для ruclaw, раскладываются в `~/.config/pi-ruclaw/skills` | `homerec` |
 | `home/kube.scm` | kubeconfig'и кластеров из sops в `~/k8s` (входит в base) | — |
 | `files/secrets/kube.yaml` | kubeconfig'и, по ключу на кластер, зашифрованы sops | `sops files/secrets/kube.yaml` |
 | `files/claude/settings.json` | настройки Claude Code: attribution, worktree, hooks, тема, плагины | — |

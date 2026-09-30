@@ -1,4 +1,4 @@
-;;; Pi coding agent: декларативно нужные Pi packages.
+;;; Pi coding agent: декларативно нужные Pi packages и свои ruclaw skills.
 ;;;
 ;;; Собственно бинарник `pi' ставится пакетом packages/pi-coding-agent.scm.
 ;;; Расширения Pi — это не Guix-пакеты, а Pi packages из npm/git/local;
@@ -11,6 +11,9 @@
 ;;;
 ;;;     pi update --extensions
 ;;;     # или: pi install npm:pi-subagents && pi install npm:pi-web-access
+;;;
+;;; Ruclaw skills кладём в ~/.config/pi-ruclaw/skills; запуск — alias pi-ruclaw
+;;; в home/base.scm.
 
 (define-module (home pi)
   #:use-module (gnu home services)
@@ -23,8 +26,15 @@
   '("npm:pi-subagents"
     "npm:pi-web-access"))
 
+(define pi-ruclaw-files
+  (local-file "../files/pi-ruclaw" "pi-ruclaw" #:recursive? #t))
+
 (define %pi-services
   (list
+   (simple-service 'pi-ruclaw-skills
+                   home-xdg-configuration-files-service-type
+                   `(("pi-ruclaw" ,pi-ruclaw-files)))
+
    (simple-service
     'pi-packages home-activation-service-type
     #~(begin
