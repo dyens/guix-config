@@ -21,6 +21,15 @@ PS1='\[\033[1;32m\]\u@\h\[\033[0m\] \[\033[1;34m\]\w\[\033[0m\]\$ '
 # Обновление версии — правкой packages/claude-code.scm, см. README.
 export DISABLE_UPDATES=1
 
+# Standalone Pi (и managed ~/.pi/agent/bin/pi) на Guix во время OAuth/login
+# может упасть с «libgcc_s.so.1 must be installed for pthread_exit to work».
+# libgcc_s.so.1 приезжает из gcc-toolchain в home profile; даём его только
+# процессу pi, не загрязняя LD_LIBRARY_PATH глобально.
+pi() {
+    LD_LIBRARY_PATH="$HOME/.guix-home/profile/lib:$HOME/.guix-profile/lib:/run/current-system/profile/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        command pi "$@"
+}
+
 # direnv: .envrc проекта (окружение из manifest.scm, переменные) —
 # при входе в каталог. direnv ставит home/emacs.scm (он нужен и Emacs).
 command -v direnv >/dev/null && eval "$(direnv hook bash)"
