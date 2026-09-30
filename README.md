@@ -252,7 +252,9 @@ Guix скачает файл и напечатает ожидаемый хеш �
 `packages/pi-coding-agent.scm` берёт официальный standalone-архив
 `pi-linux-x64.tar.gz` из GitHub Releases. ELF не патчим: Bun-compiled
 бинарник после `patchelf` падает при старте, поэтому он опирается на
-`/lib64/ld-linux-x86-64.so.2` из `systems/fhs.scm`. Для обновления
+`/lib64/ld-linux-x86-64.so.2` из `systems/fhs.scm`. Wrapper также добавляет
+профильные `lib/` в `LD_LIBRARY_PATH`, чтобы Pi видел `libgcc_s.so.1` из
+`gcc-toolchain` во время OAuth/login. Для обновления
 поменяйте `version`, поставьте временно невалидный `sha256` и запустите
 сборку — Guix напечатает ожидаемый хеш:
 

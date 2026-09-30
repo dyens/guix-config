@@ -82,6 +82,8 @@
           "unzip"
           ;; Нужен `pi install' / `pi update --extensions' для npm: Pi packages.
           "node"
+          ;; Даёт libgcc_s.so.1: он нужен standalone-бинарнику Pi во время OAuth/login.
+          "gcc-toolchain"
           "vim"
           "tmux"))))
 
