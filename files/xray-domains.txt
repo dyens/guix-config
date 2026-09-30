@@ -1,0 +1,15 @@
+# Домены/IP, которые надо отправлять через dyvpn tun.
+# route-domains.sh понимает и домены, и прямые IPv4.
+
+# Anthropic / Claude
+api.anthropic.com
+claude.ai
+console.anthropic.com
+statsig.anthropic.com
+
+# Openai
+chatgpt.com
+ab.chatgpt.com
+status.openai.com
+openai.com
+auth.openai.com

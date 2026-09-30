@@ -146,6 +146,7 @@ startx
 | `files/secrets/wg-ruclaw.yaml` | конфиг wg-quick проектной сети ruclaw (с ключом), зашифрован sops | см. «WireGuard» |
 | `home/xray.scm` | VPN-клиент: Xray в home-shepherd, SOCKS 127.0.0.1:10808 (входит в base) | — (подключается модулем) |
 | `systems/xray-tun.scm` | tun `xray0` + маршруты на выбранные адреса через этот SOCKS | — (подключается в `systems/<host>.scm`) |
+| `files/xray-domains.txt` | домены/IP для маршрутизации через `xray0` на t1 | `sysrec`, затем `sudo herd restart xray-tun` |
 | `files/secrets/xray.yaml` | конфиг Xray-клиента (ключи, сервер), зашифрован sops | см. «VPN» |
 | `files/` | сырые dotfiles, подключаемые через `local-file` | — |
 | `files/secrets/*.yaml` | секреты, зашифрованные sops | `sops files/secrets/home.yaml` |
@@ -1559,8 +1560,8 @@ tun2socks — в Xray есть свой tun-вход:
 | Xray-клиент fornex, тот же SOCKS `127.0.0.1:10808` | `home/xray.scm`, сервис `xray-fornex`, вручную вместо `xray` | ключ `xray-fornex.json` в `files/secrets/xray.yaml` |
 | tun `xray0` + `ip route` на список адресов | `systems/xray-tun.scm`, подключается в `systems/<host>.scm` (сейчас — `t1.scm`) | нет |
 
-Через VPN идут только адреса из списка в `t1.scm` (подсеть Anthropic для
-Claude Code плюс адреса из `/home/dyens/vpn/dyvpn/net.sh`). Остальное, включая
+Через VPN идут только домены/IP из `files/xray-domains.txt` (на t1 они
+резолвятся при старте сервиса `xray-tun` и превращаются в `ip route`). Остальное, включая
 трафик к самому VPN-серверу, — напрямую; поэтому петли нет. Не добавляйте
 в список адрес VPN-сервера и не заворачивайте `0.0.0.0/0` — потеряете
 сеть, а на облачной VM и ssh. Программы с поддержкой прокси могут
@@ -1616,7 +1617,9 @@ curl -sI https://api.anthropic.com | head -1
 ```
 
 Логи: `~/.local/state/xray.log` (timeweb), `~/.local/state/xray-fornex.log`
-(fornex), `/var/log/xray-tun.log` (tun).
+(fornex), `/var/log/xray-tun.log` (tun). Если поменяли `files/xray-domains.txt`,
+нужен `sysrec` и перезапуск `sudo herd restart xray-tun`: домены резолвятся при
+старте сервиса, не по таймеру.
 
 Если что-то не так, сначала разделить: сам VPN или tun?
 

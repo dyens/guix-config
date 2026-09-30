@@ -16,6 +16,8 @@
 
 (add-to-load-path (dirname (dirname (current-filename))))
 (use-modules (gnu)
+             (ice-9 rdelim)
+             (srfi srfi-13)
              (gnu services desktop)      ; elogind
              (systems xray-tun)          ; VPN для выбранных адресов
              (systems docker)            ; Docker Engine (статический)
@@ -29,6 +31,24 @@
 ;; Вручную (wg-quick мимо shepherd) туннель ssh не ломает; у сервиса теперь
 ;; таймаут. Если снова что-то не так — #f здесь и sysrec (см. README, «WireGuard»).
 (define %ruclaw-wg? #t)
+
+(define %xray-domains-file
+  (string-append (dirname (dirname (current-filename))) "/files/xray-domains.txt"))
+
+(define (xray-destinations)
+  "Домены/IP из files/xray-domains.txt: пустые строки и #комментарии пропускаются."
+  (call-with-input-file %xray-domains-file
+    (lambda (port)
+      (let loop ((result '()))
+        (let ((line (read-line port)))
+          (if (eof-object? line)
+              (reverse result)
+              (let* ((comment (string-index line #\#))
+                     (without-comment (if comment (substring line 0 comment) line))
+                     (entry (string-trim-both without-comment)))
+                (loop (if (string-null? entry)
+                          result
+                          (cons entry result))))))))))
 
 (operating-system
   (host-name "t1")
@@ -94,19 +114,8 @@
                  (service elogind-service-type)
                  (service ntp-service-type)
                  ;; Эти адреса — через VPN (tun xray0 → SOCKS 10808 →
-                 ;; Xray-клиент из home). Как net.sh на хосте.
-                 (xray-tun-service
-                  '("160.79.104.0/23"      ; Anthropic (AS399358): api.anthropic.com — Claude Code
-                    "146.59.209.152"       ; из net.sh хоста (OVH)
-                    ;; Cloudflare/прочие адреса из /home/dyens/vpn/dyvpn/net.sh.
-                    "104.18.32.47"
-                    "172.64.155.209"
-                    "172.64.146.15"
-                    "104.18.41.241"
-                    "172.64.144.117"
-                    "104.18.43.139"
-                    "66.33.60.34"
-                    "76.76.21.164")))
+                 ;; Xray-клиент из home). Как domains.txt на хосте.
+                 (xray-tun-service (xray-destinations)))
            ;; Проектная сеть ruclaw. Тот же ключ и адрес (10.8.0.4), что у хоста:
            ;; одновременно туннель работает только на одной машине.
            (if %ruclaw-wg?
