@@ -16,13 +16,15 @@ Jira is at `https://jira.croc.ru`, project `RCL`. Auth uses `JIRA_API_TOKEN` fro
 
 ## Helper script
 
+All helper paths below are relative to this skill directory (`jira/`). When executing them from another working directory, resolve them against the directory that contains this `SKILL.md`.
+
 Prefer the helper stored next to this skill:
 
 ```bash
-.agents/skills/jira/scripts/jira.py read RCL-123 --comments 5
-.agents/skills/jira/scripts/jira.py mine --max 50
-.agents/skills/jira/scripts/jira.py comment RCL-123 --file /tmp/comment.md
-printf '%s\n' 'Comment body' | .agents/skills/jira/scripts/jira.py comment RCL-123
+scripts/jira.py read RCL-123 --comments 5
+scripts/jira.py mine --max 50
+scripts/jira.py comment RCL-123 --file /tmp/comment.md
+printf '%s\n' 'Comment body' | scripts/jira.py comment RCL-123
 ```
 
 The script also accepts full Jira URLs. It uses Jira REST API v2 and does not require extra Python dependencies. It searches `.envrc` in the current worktree first, then the main worktree/common git checkout so linked git worktrees can reuse the primary checkout's token file.
@@ -32,7 +34,7 @@ The script also accepts full Jira URLs. It uses Jira REST API v2 and does not re
 Run:
 
 ```bash
-.agents/skills/jira/scripts/jira.py mine --max 50
+scripts/jira.py mine --max 50
 ```
 
 When the user asks for their tasks/issues (for example: "какие у меня задачи в jira"), summarize the result as a concise list and **always include a clickable Jira link for every issue**. Prefer Markdown links in the issue key, e.g. `- [RCL-123](https://jira.croc.ru/browse/RCL-123) — Status — Priority — Summary`.
@@ -40,13 +42,13 @@ When the user asks for their tasks/issues (for example: "какие у меня 
 By default this combines unresolved non-Done RCL issues where `assignee = currentUser()` with issues in discovered Jira fields whose names look like reviewer/review/ревью/провер. Done/canceled statuses are excluded through `statusCategory != Done`. If the local Jira reviewer field has an unexpected name, override with explicit JQL:
 
 ```bash
-.agents/skills/jira/scripts/jira.py mine --jql 'project = RCL AND "Reviewer" = currentUser() AND resolution = Unresolved ORDER BY updated DESC'
+scripts/jira.py mine --jql 'project = RCL AND "Reviewer" = currentUser() AND resolution = Unresolved ORDER BY updated DESC'
 ```
 
 For assigned-only:
 
 ```bash
-.agents/skills/jira/scripts/jira.py mine --assignee-only
+scripts/jira.py mine --assignee-only
 ```
 
 ## Reading a ticket
@@ -54,7 +56,7 @@ For assigned-only:
 1. Run:
 
    ```bash
-   .agents/skills/jira/scripts/jira.py read RCL-123 --comments 5
+   scripts/jira.py read RCL-123 --comments 5
    ```
 
 2. Summarize for the user:

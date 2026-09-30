@@ -18,15 +18,17 @@ GitLab is at `https://gitlab.croc.ru/croc_dit/ruclaw`. Auth uses `GITLAB_TOKEN` 
 
 ## Helper script
 
+All helper paths below are relative to this skill directory (`gitlab/`). When executing them from another working directory, resolve them against the directory that contains this `SKILL.md`.
+
 Prefer the helper stored next to this skill:
 
 ```bash
-.agents/skills/gitlab/scripts/gitlab.py mr https://gitlab.croc.ru/croc_dit/ruclaw/-/merge_requests/123 --fetch
-.agents/skills/gitlab/scripts/gitlab.py mr 123 --fetch
-.agents/skills/gitlab/scripts/gitlab.py note-read 'https://gitlab.croc.ru/croc_dit/ruclaw/-/merge_requests/123#note_456'
-.agents/skills/gitlab/scripts/gitlab.py ci 123 --trace
-.agents/skills/gitlab/scripts/gitlab.py note 123 --file /tmp/review.md
-printf '%s\n' 'Review summary' | .agents/skills/gitlab/scripts/gitlab.py note 123
+scripts/gitlab.py mr https://gitlab.croc.ru/croc_dit/ruclaw/-/merge_requests/123 --fetch
+scripts/gitlab.py mr 123 --fetch
+scripts/gitlab.py note-read 'https://gitlab.croc.ru/croc_dit/ruclaw/-/merge_requests/123#note_456'
+scripts/gitlab.py ci 123 --trace
+scripts/gitlab.py note 123 --file /tmp/review.md
+printf '%s\n' 'Review summary' | scripts/gitlab.py note 123
 ```
 
 The script:
@@ -53,7 +55,7 @@ or asks to review an MR URL:
 1. Use this GitLab helper first:
 
    ```bash
-   .agents/skills/gitlab/scripts/gitlab.py mr <MR-URL> --fetch
+   scripts/gitlab.py mr <MR-URL> --fetch
    ```
 
 2. Use the printed base SHA and MR head ref as the review diff.
@@ -73,7 +75,7 @@ Do not checkout or mutate the MR branch unless the user explicitly asks. Fetchin
 When the user asks to diagnose a broken MR pipeline, run:
 
 ```bash
-.agents/skills/gitlab/scripts/gitlab.py ci <MR-URL-or-IID> --trace
+scripts/gitlab.py ci <MR-URL-or-IID> --trace
 ```
 
 Default output shows failed/canceled/skipped/manual jobs from the latest MR pipeline. Use `--all` to see every job.
@@ -101,7 +103,7 @@ After `code-review`, if the user asks to add the review to the MR comment, draft
 Use:
 
 ```bash
-.agents/skills/gitlab/scripts/gitlab.py note <MR-URL-or-IID> --file /tmp/review.md
+scripts/gitlab.py note <MR-URL-or-IID> --file /tmp/review.md
 ```
 
 After posting, return the printed `Comment URL` to the user.

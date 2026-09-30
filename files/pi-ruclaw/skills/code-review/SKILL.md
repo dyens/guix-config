@@ -59,6 +59,8 @@ If subagents cannot be used, fall back to doing the two reviews sequentially and
 
 ## Inputs
 
+Helper paths below are relative to this skill directory (`code-review/`); `../gitlab/scripts/gitlab.py` is relative to `code-review/` as a sibling skill. When executing from another working directory, resolve these paths against this `SKILL.md` directory.
+
 The user should provide either:
 
 - local review input: fixed point plus optional spec source;
@@ -68,7 +70,7 @@ For local review, fixed point is a commit, branch, tag, or ref.
 For MR review, run:
 
 ```bash
-.agents/skills/gitlab/scripts/gitlab.py mr <MR-URL> --fetch
+../gitlab/scripts/gitlab.py mr <MR-URL> --fetch
 ```
 
 Then use the printed base SHA and `origin/merge-requests/<iid>/head` as the diff endpoints.
@@ -116,7 +118,7 @@ When using subagents that might not have git/shell access, the parent must creat
 Use the helper when available:
 
 ```bash
-.agents/skills/code-review/scripts/prepare-review-bundle.sh <base> <head> .scratch/reviews/<id>/<head-short>
+scripts/prepare-review-bundle.sh <base> <head> .scratch/reviews/<id>/<head-short>
 ```
 
 It creates:
@@ -144,7 +146,7 @@ git worktree add --detach .scratch/reviews/<id>/<head-short>/head-tree <head>
 For large diffs, also split the patch into path/topic batches and tell each subagent which batch(es) are authoritative. Use the lane helper when available:
 
 ```bash
-.agents/skills/code-review/scripts/prepare-review-lanes.sh .scratch/reviews/<id>/<head-short>
+scripts/prepare-review-lanes.sh .scratch/reviews/<id>/<head-short>
 ```
 
 Default lanes:
@@ -302,7 +304,7 @@ Do not fix findings unless the user asks.
 If the review target is a GitLab MR and the user asks to add the review as an MR comment, prepare a concise Markdown note and post it with:
 
 ```bash
-.agents/skills/gitlab/scripts/gitlab.py note <MR-URL-or-IID> --file /tmp/review.md
+../gitlab/scripts/gitlab.py note <MR-URL-or-IID> --file /tmp/review.md
 ```
 
 Normally show the draft before posting unless the user explicitly instructed to post. Keep the note short: summary, Standards findings, Spec findings, checks/evidence. After posting, return the `Comment URL` printed by the GitLab helper.

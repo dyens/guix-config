@@ -16,6 +16,8 @@ Goal: read the review comment, inspect the MR and relevant code, evaluate the pr
 
 ## Inputs
 
+Helper paths below are relative to this skill directory (`fix-mr/`); `../gitlab/scripts/gitlab.py` is relative to `fix-mr/` as a sibling skill. When executing from another working directory, resolve these paths against this `SKILL.md` directory.
+
 Required:
 
 - GitLab MR note URL ending with `#note_<id>`.
@@ -25,13 +27,13 @@ Required:
 1. Read the specific review note:
 
    ```bash
-   .agents/skills/gitlab/scripts/gitlab.py note-read <MR-NOTE-URL>
+   ../gitlab/scripts/gitlab.py note-read <MR-NOTE-URL>
    ```
 
 2. Read and fetch the MR:
 
    ```bash
-   .agents/skills/gitlab/scripts/gitlab.py mr <MR-URL> --fetch
+   ../gitlab/scripts/gitlab.py mr <MR-URL> --fetch
    ```
 
 3. Use the printed base/head refs to inspect the diff:
