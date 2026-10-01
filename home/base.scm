@@ -2,7 +2,7 @@
 ;;; на любой машине, с графикой или без.
 ;;;
 ;;; Здесь: vim, Emacs (home/emacs.scm), git, tmux, Claude Code, Pi, bash,
-;;; секреты, VPN-клиент Xray (home/xray.scm). Графика (i3, шрифты, startx) сюда НЕ
+;;; секреты, transparent Xray helper (home/dyvpn.scm). Графика (i3, шрифты, startx) сюда НЕ
 ;;; входит — её добавляет home/dyens.scm через #:extra-packages / #:extra-services.
 ;;;
 ;;; Точки входа:
@@ -26,7 +26,6 @@
   #:use-module (packages glab)               ; GitLab CLI, см. packages/glab.scm
   #:use-module (packages kubectl)            ; клиент Kubernetes, см. packages/kubectl.scm
   #:use-module (home emacs)                  ; Emacs и его конфиг
-  #:use-module (home xray)                   ; VPN-клиент
   #:use-module (home docker)                 ; плагины docker compose/buildx
   #:use-module (home wireguard)              ; секреты WireGuard (туннель — в системе)
   #:use-module (home ssh)                    ; ~/.ssh/config, ключ GitLab из sops
@@ -44,7 +43,7 @@
   (local-file "../files/secrets/home.yaml" "home.yaml"))
 
 ;; Без поля `path': читаем прямо из $XDG_RUNTIME_DIR/secrets/<ключ>
-;; (см. files/bashrc, home/xray.scm).
+;; (см. files/bashrc, home/dyvpn.scm).
 ;;
 ;; `path' не использовать. Он создаёт ссылку в $HOME, а учёт этих ссылок
 ;; ведёт в .extra-links ВНУТРИ каталога секретов, то есть в tmpfs.
@@ -146,7 +145,6 @@
                       ;; Пути относительно ~/.config, без префикса .config/
                       `(("tmux/tmux.conf" ,(local-file "../files/tmux.conf")))))
      %emacs-services
-     %xray-services
      %docker-cli-services
      %claude-services
      %wireguard-secrets

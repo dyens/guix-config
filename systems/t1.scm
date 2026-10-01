@@ -8,7 +8,7 @@
 ;;; без пароля. Консоль дублируется на ttyS0 (console log в облаке).
 ;;;
 ;;; Сервер для разработки: сеть, ssh, sudo, git, elogind, Docker, VPN
-;;; (Xray-tun для Anthropic, WireGuard ruclaw). Модули репозитория
+;;; (transparent Xray helper в home, WireGuard ruclaw). Модули репозитория
 ;;; подключаются через add-to-load-path ниже. Секретов у системы нет: их
 ;;; расшифровывает home-sops пользователя (конфиги Xray и WireGuard).
 ;;;
@@ -16,10 +16,7 @@
 
 (add-to-load-path (dirname (dirname (current-filename))))
 (use-modules (gnu)
-             (ice-9 rdelim)
-             (srfi srfi-13)
              (gnu services desktop)      ; elogind
-             (systems xray-tun)          ; VPN для выбранных адресов
              (systems docker)            ; Docker Engine (статический)
              (gnu services networking)   ; dhcpcd, ntp
              (gnu services ssh)          ; openssh-service-type
@@ -31,24 +28,6 @@
 ;; Вручную (wg-quick мимо shepherd) туннель ssh не ломает; у сервиса теперь
 ;; таймаут. Если снова что-то не так — #f здесь и sysrec (см. README, «WireGuard»).
 (define %ruclaw-wg? #t)
-
-(define %xray-domains-file
-  (string-append (dirname (dirname (current-filename))) "/files/xray-domains.txt"))
-
-(define (xray-destinations)
-  "Домены/IP из files/xray-domains.txt: пустые строки и #комментарии пропускаются."
-  (call-with-input-file %xray-domains-file
-    (lambda (port)
-      (let loop ((result '()))
-        (let ((line (read-line port)))
-          (if (eof-object? line)
-              (reverse result)
-              (let* ((comment (string-index line #\#))
-                     (without-comment (if comment (substring line 0 comment) line))
-                     (entry (string-trim-both without-comment)))
-                (loop (if (string-null? entry)
-                          result
-                          (cons entry result))))))))))
 
 (operating-system
   (host-name "t1")
@@ -116,10 +95,7 @@
                  ;; home-shepherd: «mkdir: Permission denied: "/run/user"».
                  ;; В systems/base.scm он приходит с %desktop-services.
                  (service elogind-service-type)
-                 (service ntp-service-type)
-                 ;; Эти адреса — через VPN (tun xray0 → SOCKS 10808 →
-                 ;; Xray-клиент из home). Как domains.txt на хосте.
-                 (xray-tun-service (xray-destinations)))
+                 (service ntp-service-type))
            ;; Проектная сеть ruclaw. Тот же ключ и адрес (10.8.0.4), что у хоста:
            ;; одновременно туннель работает только на одной машине.
            (if %ruclaw-wg?

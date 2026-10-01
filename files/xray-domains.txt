@@ -13,3 +13,6 @@ ab.chatgpt.com
 status.openai.com
 openai.com
 auth.openai.com
+
+# Telegram notifications
+api.telegram.org

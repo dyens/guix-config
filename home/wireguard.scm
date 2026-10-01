@@ -1,4 +1,4 @@
-;;; Секреты WireGuard для home-sops — как конфиг Xray (home/xray.scm).
+;;; Секреты WireGuard для home-sops — как конфиги Xray в home/dyvpn.scm.
 ;;;
 ;;; Конфиг wg-quick проектной сети ruclaw (files/secrets/wg-ruclaw.yaml,
 ;;; ключ "ruclaw.conf") расшифровывается в /run/user/<uid>/secrets/ruclaw.conf.

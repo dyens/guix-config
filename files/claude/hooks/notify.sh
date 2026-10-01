@@ -5,11 +5,9 @@
 # На stdin приходит JSON одной строкой; jq в профиле нет, поэтому нужные
 # поля достаём grep'ом.
 #
-# ЧЕРЕЗ SOCKS. С t1 api.telegram.org недоступен — соединение отваливается
-# по таймауту (проверено: другие хосты открываются, этот нет). Поэтому
-# идём через SOCKS Xray-клиента из home/xray.scm, 127.0.0.1:10808. Через
-# него Telegram отвечает нормально. Следствие: если сервис xray лежит,
-# уведомлений не будет — смотреть `herd status xray`.
+# На t1 api.telegram.org недоступен напрямую. Если нужен Telegram, должен быть
+# запущен dyvpn-iptables: он перехватит HTTPS по SNI и отправит api.telegram.org
+# через Xray. Иначе curl ниже просто упадёт по таймауту, а мы запишем это в лог.
 #
 # Выходим ВСЕГДА нулём: код 2 для Claude Code означает блокирующую ошибку,
 # и уведомлялка не должна мешать работе.
@@ -20,7 +18,6 @@
 set -u
 
 SECRET="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/secrets/telegram.env"
-SOCKS="127.0.0.1:10808"
 LOG="${XDG_CACHE_HOME:-$HOME/.cache}/claude-notify.log"
 
 log() {
@@ -66,7 +63,7 @@ fi
 
 text="$(hostname) · claude ${what}${where}"
 
-out=$(curl -sS --max-time 10 --socks5-hostname "$SOCKS" \
+out=$(curl -sS --max-time 10 \
           --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
           --data-urlencode "text=${text}" \
           "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" 2>&1)

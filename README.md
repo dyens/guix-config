@@ -133,8 +133,6 @@ startx
 | `home/ssh.scm` | `~/.ssh/config`, ключ GitLab из sops (входит в base) | — |
 | `home/claude.scm` | Claude Code: `settings.json`, скиллы, хук уведомлений (входит в base) | — |
 | `home/pi.scm` | Pi packages/extensions: `npm:pi-subagents`, `npm:pi-web-access`, ruclaw skills (входит в base) | `pi update --extensions` |
-| `home/dyvpn.scm` | helper-скрипты `dyvpn-iptables`/`dyvpn-stop-iptables` для transparent Xray через iptables | `homerec` |
-| `files/dyvpn/` | исходники helper-скриптов dyvpn | — |
 | `files/pi-ruclaw/skills/` | свои Pi skills для ruclaw, раскладываются в `~/.config/pi-ruclaw/skills` | `homerec` |
 | `home/kube.scm` | kubeconfig'и кластеров из sops в `~/k8s` (входит в base) | — |
 | `files/secrets/kube.yaml` | kubeconfig'и, по ключу на кластер, зашифрованы sops | `sops files/secrets/kube.yaml` |
@@ -147,9 +145,8 @@ startx
 | `files/secrets/ssh.yaml` | приватный ключ для GitLab CROC (`croc-gitlab`), зашифрован sops | см. «Ключ для GitLab» |
 | `systems/wg-quick.scm` | WireGuard: конфиг wg-quick из sops + сервис + `/etc/hosts` | — (подключается в `systems/<host>.scm`) |
 | `files/secrets/wg-ruclaw.yaml` | конфиг wg-quick проектной сети ruclaw (с ключом), зашифрован sops | см. «WireGuard» |
-| `home/xray.scm` | VPN-клиент: Xray в home-shepherd, SOCKS 127.0.0.1:10808 (входит в base) | — (подключается модулем) |
-| `systems/xray-tun.scm` | tun `xray0` + маршруты на выбранные адреса через этот SOCKS | — (подключается в `systems/<host>.scm`) |
-| `files/xray-domains.txt` | домены/IP для маршрутизации через `xray0` на t1 | `sysrec`, затем `sudo herd restart xray-tun` |
+| `home/dyvpn.scm` | transparent Xray helper: `dyvpn-timeweb`/`dyvpn-fornex` через iptables REDIRECT | `homerec`; для t1 ещё `sysrec` (iptables) |
+| `files/xray-domains.txt` | домены/IP, которые `dyvpn-iptables` отправляет через Xray | `homerec` |
 | `files/secrets/xray.yaml` | конфиг Xray-клиента (ключи, сервер), зашифрован sops | см. «VPN» |
 | `files/` | сырые dotfiles, подключаемые через `local-file` | — |
 | `files/secrets/*.yaml` | секреты, зашифрованные sops | `sops files/secrets/home.yaml` |
@@ -1364,11 +1361,11 @@ Claude Code работает в своём окне, вы — в другом и
 
 С t1 `api.telegram.org` недоступен — соединение отваливается по
 таймауту, при том что другие хосты открываются. Поэтому запрос идёт
-через SOCKS Xray-клиента (`home/xray.scm`, `127.0.0.1:10808`), никаких
+через transparent Xray helper (`dyvpn-timeweb`/`dyvpn-fornex`), никаких
 правок в маршрутах системы не нужно.
 
 Следствие: **лежит `xray` — нет уведомлений**. Проверять
-`herd status xray`.
+`dyvpn-timeweb`/`dyvpn-fornex`.
 
 #### Секрет
 
@@ -1548,36 +1545,32 @@ docker run --rm busybox nslookup docker-registry.k2int-ruclaw.loc  # и из к�
 
 ## VPN (Xray)
 
-Как на хосте (`xray` + `net.sh` с tun2socks), только декларативно и без
-tun2socks — в Xray есть свой tun-вход:
+Текущий подход — transparent proxy через iptables REDIRECT и Xray sniffing:
 
 ```
-программа → маршрут на xray0 → Xray-tun (система, root)
-          → SOCKS 127.0.0.1:10808 → Xray-клиент (home, пользователь)
-          → VLESS/REALITY → сервер
+программа → TCP 80/443 → iptables REDIRECT 127.0.0.1:12345
+          → Xray dokodemo-door + sniffing SNI/HTTP Host
+          → rule из files/xray-domains.txt → VLESS/REALITY (timeweb/fornex)
+          → остальное → direct
 ```
 
 | Часть | Где | Секреты |
 |---|---|---|
-| Xray-клиент timeweb, SOCKS `127.0.0.1:10808` | `home/xray.scm`, сервис `xray`, стартует по умолчанию | ключ `xray.json` в `files/secrets/xray.yaml` |
-| Xray-клиент fornex, тот же SOCKS `127.0.0.1:10808` | `home/xray.scm`, сервис `xray-fornex`, вручную вместо `xray` | ключ `xray-fornex.json` в `files/secrets/xray.yaml` |
-| tun `xray0` + `ip route` на список адресов | `systems/xray-tun.scm`, подключается в `systems/<host>.scm` (сейчас — `t1.scm`) | нет |
+| helper `dyvpn-iptables` / aliases `dyvpn-timeweb`, `dyvpn-fornex` | `home/dyvpn.scm`, запускается вручную | ключи `xray.json`, `xray-fornex.json` в `files/secrets/xray.yaml` |
+| домены/IP для proxy-ветки | `files/xray-domains.txt` → `~/.config/dyvpn/domains.txt` | нет |
 
-Через VPN идут только домены/IP из `files/xray-domains.txt` (на t1 они
-резолвятся при старте сервиса `xray-tun` и превращаются в `ip route`). Остальное, включая
-трафик к самому VPN-серверу, — напрямую; поэтому петли нет. Не добавляйте
-в список адрес VPN-сервера и не заворачивайте `0.0.0.0/0` — потеряете
-сеть, а на облачной VM и ssh. Программы с поддержкой прокси могут
-ходить в SOCKS напрямую: `socks5://127.0.0.1:10808`.
+Через VPN идут только домены/IP из `files/xray-domains.txt`; остальное Xray
+отправляет напрямую. Xray outbound sockets помечаются `sockopt.mark = 255`, а
+iptables не перехватывает уже помеченные соединения — так избегаем петли.
 
 Переключение сервера вручную:
 
 ```sh
-herd stop xray
-herd start xray-fornex
-# обратно на дефолтный timeweb:
-herd stop xray-fornex
-herd start xray
+dyvpn-timeweb
+# или
+dyvpn-fornex
+# остановить/почистить iptables:
+dyvpn-stop
 ```
 
 ### Секрет с конфигом (один раз, на хосте)
@@ -1605,39 +1598,30 @@ git add files/secrets/xray.yaml
 
 ```sh
 git pull
-sysrec      # систему: сервис xray-tun (root)
-homerec     # home: сервис xray (пользователь)
+sysrec      # на t1 нужен iptables в system profile
+homerec     # helper-скрипты, домены и sops-секреты в home
 ```
 
-Проверка:
+Запуск и проверка:
 
 ```sh
-herd status xray                     # дефолтный клиент timeweb, без sudo
-herd status xray-fornex              # запасной клиент fornex, без sudo
-sudo herd status xray-tun            # tun
-ip route get 160.79.104.10           # … dev xray0
-curl -sI https://api.anthropic.com | head -1
+dyvpn-timeweb                         # или dyvpn-fornex
+curl -4 -sI https://api.anthropic.com | head -1
+dyvpn-stop                            # очистить iptables chain
 ```
 
-Логи: `~/.local/state/xray.log` (timeweb), `~/.local/state/xray-fornex.log`
-(fornex), `/var/log/xray-tun.log` (tun). Если поменяли `files/xray-domains.txt`,
-нужен `sysrec` и перезапуск `sudo herd restart xray-tun`: домены резолвятся при
-старте сервиса, не по таймеру.
+`dyvpn-iptables` пишет временный Xray config в `/tmp`, запускает Xray в
+foreground и держит iptables-правила, пока процесс жив. Если поменяли
+`files/xray-domains.txt`, нужен `homerec`; следующий запуск dyvpn возьмёт
+новый `~/.config/dyvpn/domains.txt`.
 
-Если что-то не так, сначала разделить: сам VPN или tun?
+Если что-то не так:
 
 ```sh
-# VPN мимо tun — прямо в SOCKS клиента; любой HTTP-код (404) = VPN работает
-curl -s -m 15 --socks5-hostname 127.0.0.1:10808 -o /dev/null -w '%{http_code}\n' https://api.anthropic.com
-# tun
-ip -br addr show xray0               # должен быть 198.18.0.1/32
-ip route get 160.79.104.10           # … dev xray0 src 198.18.0.1
+sudo iptables -t nat -S DYVPN_XRAY
+sudo iptables -t nat -S OUTPUT | grep DYVPN_XRAY
+DYVPN_DOMAIN_FILE=~/.config/dyvpn/domains.txt dyvpn-timeweb
 ```
-
-- **`Invalid argument` на `connect()` / `ip route get` через xray0** — у
-  интерфейса нет IPv4-адреса, и ядро не выбирает исходный. Поэтому сервис
-  назначает `xray0` адрес `198.18.0.1/32` (на хосте с tun2socks и ядром
-  Fedora обходилось без него).
 
 ### TLS-отпечаток (fingerprint)
 

@@ -159,14 +159,16 @@ config = {
             'routeOnly': True,
         },
     }],
+    # Xray's fallback for non-matching traffic is the first outbound.  Keep
+    # direct first: only explicit domain/IP rules from domains.txt use proxy.
     'outbounds': [
-        proxy,
         {
             'tag': 'direct',
             'protocol': 'freedom',
             'settings': {},
             'streamSettings': {'sockopt': {'mark': mark}},
         },
+        proxy,
         {'tag': 'block', 'protocol': 'blackhole'},
     ],
     'routing': {'domainStrategy': 'AsIs', 'rules': rules},
@@ -200,6 +202,9 @@ sudo "$IPTABLES" -t nat -C OUTPUT -p tcp -j "$CHAIN" 2>/dev/null || \
   sudo "$IPTABLES" -t nat -A OUTPUT -p tcp -j "$CHAIN"
 
 log "config=$CLIENT_CONFIG domains=$DOMAIN_FILE redirect=tcp/80,443->127.0.0.1:$PORT"
-"$XRAY_BIN" run -c "$tmp" &
+# Xray needs CAP_NET_ADMIN/root for sockopt.mark (SO_MARK).  Without it,
+# direct outbounds are redirected again by our OUTPUT rule and can loop, and
+# logs show: "failed to set SO_MARK > operation not permitted".
+sudo "$XRAY_BIN" run -c "$tmp" &
 XRAY_PID=$!
 wait "$XRAY_PID"

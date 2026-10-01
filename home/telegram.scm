@@ -11,9 +11,9 @@
 ;;; потому что канал общий: тот же секрет пригодится, если уведомления
 ;;; понадобятся ещё откуда-нибудь.
 ;;;
-;;; Отправка идёт через SOCKS Xray-клиента (127.0.0.1:10808): с t1
-;;; api.telegram.org недоступен напрямую. Подробности — README, раздел
-;;; «Уведомления в Telegram».
+;;; С t1 api.telegram.org недоступен напрямую. Для уведомлений запустите
+;;; dyvpn-timeweb/dyvpn-fornex: transparent Xray перехватит HTTPS по SNI.
+;;; Подробности — README, раздел «Уведомления в Telegram».
 
 (define-module (home telegram)
   #:use-module (gnu services)
