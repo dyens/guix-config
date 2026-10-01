@@ -14,5 +14,8 @@ status.openai.com
 openai.com
 auth.openai.com
 
+# YouTube video CDN
+googlevideo.com
+
 # Telegram notifications
 api.telegram.org

@@ -9,7 +9,9 @@ if [ -z "$IPTABLES" ] || [ ! -x "$IPTABLES" ]; then
   echo "iptables not found; nothing to clean" >&2
   exit 0
 fi
-sudo "$IPTABLES" -t nat -D OUTPUT -p tcp -j "$CHAIN" 2>/dev/null || true
+while sudo "$IPTABLES" -t nat -D OUTPUT -p tcp -j "$CHAIN" 2>/dev/null; do :; done
+while sudo "$IPTABLES" -t nat -D OUTPUT -p udp --dport 443 -j "$CHAIN" 2>/dev/null; do :; done
+while sudo "$IPTABLES" -t nat -D OUTPUT -p udp -j "$CHAIN" 2>/dev/null; do :; done
 sudo "$IPTABLES" -t nat -F "$CHAIN" 2>/dev/null || true
 sudo "$IPTABLES" -t nat -X "$CHAIN" 2>/dev/null || true
 echo "Cleaned iptables nat chain $CHAIN"

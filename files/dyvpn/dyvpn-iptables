@@ -51,7 +51,9 @@ cleanup() {
     kill "$XRAY_PID" 2>/dev/null || true
     wait "$XRAY_PID" 2>/dev/null || true
   fi
-  sudo "$IPTABLES" -t nat -D OUTPUT -p tcp -j "$CHAIN" 2>/dev/null || true
+  while sudo "$IPTABLES" -t nat -D OUTPUT -p tcp -j "$CHAIN" 2>/dev/null; do :; done
+  while sudo "$IPTABLES" -t nat -D OUTPUT -p udp --dport 443 -j "$CHAIN" 2>/dev/null; do :; done
+  while sudo "$IPTABLES" -t nat -D OUTPUT -p udp -j "$CHAIN" 2>/dev/null; do :; done
   sudo "$IPTABLES" -t nat -F "$CHAIN" 2>/dev/null || true
   sudo "$IPTABLES" -t nat -X "$CHAIN" 2>/dev/null || true
   rm -f "$tmp"
@@ -198,8 +200,10 @@ for cidr in \
   sudo "$IPTABLES" -t nat -A "$CHAIN" -d "$cidr" -j RETURN
 done
 sudo "$IPTABLES" -t nat -A "$CHAIN" -p tcp -m multiport --dports 80,443 -j REDIRECT --to-ports "$PORT"
-sudo "$IPTABLES" -t nat -C OUTPUT -p tcp -j "$CHAIN" 2>/dev/null || \
-  sudo "$IPTABLES" -t nat -A OUTPUT -p tcp -j "$CHAIN"
+while sudo "$IPTABLES" -t nat -D OUTPUT -p tcp -j "$CHAIN" 2>/dev/null; do :; done
+while sudo "$IPTABLES" -t nat -D OUTPUT -p udp --dport 443 -j "$CHAIN" 2>/dev/null; do :; done
+while sudo "$IPTABLES" -t nat -D OUTPUT -p udp -j "$CHAIN" 2>/dev/null; do :; done
+sudo "$IPTABLES" -t nat -A OUTPUT -p tcp -j "$CHAIN"
 
 log "config=$CLIENT_CONFIG domains=$DOMAIN_FILE redirect=tcp/80,443->127.0.0.1:$PORT"
 # Xray needs CAP_NET_ADMIN/root for sockopt.mark (SO_MARK).  Without it,
