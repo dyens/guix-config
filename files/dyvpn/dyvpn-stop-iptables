@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+CHAIN=${DYVPN_CHAIN:-DYVPN_XRAY}
+sudo iptables -t nat -D OUTPUT -p tcp -j "$CHAIN" 2>/dev/null || true
+sudo iptables -t nat -F "$CHAIN" 2>/dev/null || true
+sudo iptables -t nat -X "$CHAIN" 2>/dev/null || true
+echo "Cleaned iptables nat chain $CHAIN"

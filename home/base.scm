@@ -34,6 +34,7 @@
   #:use-module (home telegram)               ; секрет бота для уведомлений
   #:use-module (home claude)                 ; свои скиллы Claude Code
   #:use-module (home pi)                     ; Pi packages/extensions
+  #:use-module (home dyvpn)                  ; helper scripts for transparent Xray
   #:export (make-home))
 
 ;; Зашифрованные секреты. В стор уезжает только шифротекст, открытый
@@ -118,6 +119,9 @@
                     ("la"  . "ls -A")
                     ("k"   . "kubectl")
                     ("pi-ruclaw" . "cd /home/dyens/dev/croc/ruclaw && direnv exec . env LD_LIBRARY_PATH=\"$HOME/.guix-home/profile/lib:$HOME/.guix-profile/lib:/run/current-system/profile/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\" pi --skill /home/dyens/.config/pi-ruclaw/skills")
+                    ("dyvpn-timeweb" . "dyvpn-iptables timeweb")
+                    ("dyvpn-fornex" . "dyvpn-iptables fornex")
+                    ("dyvpn-stop" . "dyvpn-stop-iptables")
                     ("gs"  . "git status")
                     ("gd"  . "git diff")
                     ;; sops ищет age-ключ в ~/.config/sops/age/keys.txt,
@@ -150,4 +154,5 @@
      %telegram-secrets
      %ssh-services
      %pi-services
+     %dyvpn-services
      extra-services))))

@@ -1,0 +1,196 @@
+#!/bin/sh
+set -eu
+
+BASE_DIR=${DYVPN_DIR:-/home/dyens/vpn/dyvpn}
+CHAIN=${DYVPN_CHAIN:-DYVPN_XRAY}
+PORT=${DYVPN_REDIRECT_PORT:-12345}
+MARK=${DYVPN_MARK:-0xff}
+DOMAIN_FILE=${DYVPN_DOMAIN_FILE:-$HOME/.config/dyvpn/domains.txt}
+XRAY_BIN=${XRAY_BIN:-xray}
+PYTHON=${PYTHON:-python3}
+CONFIG_ARG=${1:-timeweb}
+
+log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+
+runtime_dir=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+case "$CONFIG_ARG" in
+  timeweb)
+    if [ -r "$runtime_dir/secrets/xray.json" ]; then
+      CLIENT_CONFIG=$runtime_dir/secrets/xray.json
+    else
+      CLIENT_CONFIG=$BASE_DIR/timeweb.json
+    fi
+    ;;
+  fornex)
+    if [ -r "$runtime_dir/secrets/xray-fornex.json" ]; then
+      CLIENT_CONFIG=$runtime_dir/secrets/xray-fornex.json
+    else
+      CLIENT_CONFIG=$BASE_DIR/fornex.json
+    fi
+    ;;
+  *) CLIENT_CONFIG=$CONFIG_ARG ;;
+esac
+
+if [ ! -r "$CLIENT_CONFIG" ]; then
+  echo "Config is not readable: $CLIENT_CONFIG" >&2
+  exit 1
+fi
+if [ ! -r "$DOMAIN_FILE" ]; then
+  echo "Domain file is not readable: $DOMAIN_FILE" >&2
+  exit 1
+fi
+
+tmp=$(mktemp /tmp/dyvpn-xray.XXXXXX.json)
+cleanup() {
+  set +e
+  if [ -n "${XRAY_PID:-}" ]; then
+    kill "$XRAY_PID" 2>/dev/null || true
+    wait "$XRAY_PID" 2>/dev/null || true
+  fi
+  sudo iptables -t nat -D OUTPUT -p tcp -j "$CHAIN" 2>/dev/null || true
+  sudo iptables -t nat -F "$CHAIN" 2>/dev/null || true
+  sudo iptables -t nat -X "$CHAIN" 2>/dev/null || true
+  rm -f "$tmp"
+}
+trap cleanup EXIT INT TERM
+
+"$PYTHON" - "$CLIENT_CONFIG" "$DOMAIN_FILE" "$tmp" "$MARK" <<'PY'
+import ipaddress, json, sys
+from pathlib import Path
+
+client_path, domains_path, out_path, mark_s = sys.argv[1:5]
+mark = int(mark_s, 0)
+
+def strip_jsonc(text: str) -> str:
+    out = []
+    in_str = False
+    esc = False
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        nxt = text[i + 1] if i + 1 < len(text) else ''
+        if in_str:
+            out.append(ch)
+            if esc:
+                esc = False
+            elif ch == '\\':
+                esc = True
+            elif ch == '"':
+                in_str = False
+            i += 1
+            continue
+        if ch == '"':
+            in_str = True
+            out.append(ch)
+            i += 1
+            continue
+        if ch == '#':
+            while i < len(text) and text[i] != '\n':
+                i += 1
+            out.append('\n')
+            continue
+        if ch == '/' and nxt == '/':
+            i += 2
+            while i < len(text) and text[i] != '\n':
+                i += 1
+            out.append('\n')
+            continue
+        out.append(ch)
+        i += 1
+    return ''.join(out)
+
+def entries(path: str):
+    result = []
+    for raw in Path(path).read_text().splitlines():
+        line = raw.split('#', 1)[0].strip()
+        if line:
+            result.append(line)
+    return result
+
+client = json.loads(strip_jsonc(Path(client_path).read_text()))
+outbounds = client.get('outbounds') or []
+proxy = None
+for outbound in outbounds:
+    if outbound.get('tag') == 'proxy':
+        proxy = outbound
+        break
+if proxy is None:
+    if not outbounds:
+        raise SystemExit('client config has no outbounds')
+    proxy = outbounds[0]
+proxy = json.loads(json.dumps(proxy))
+proxy['tag'] = 'proxy'
+stream = proxy.setdefault('streamSettings', {})
+sockopt = stream.setdefault('sockopt', {})
+sockopt['mark'] = mark
+
+domains, ips = [], []
+for item in entries(domains_path):
+    try:
+        ipaddress.ip_network(item, strict=False)
+        ips.append(item)
+    except ValueError:
+        if item.startswith(('regexp:', 'domain:', 'full:', 'keyword:')):
+            domains.append(item)
+        else:
+            domains.append('domain:' + item)
+
+rules = []
+if domains:
+    rules.append({'type': 'field', 'domain': domains, 'outboundTag': 'proxy'})
+if ips:
+    rules.append({'type': 'field', 'ip': ips, 'outboundTag': 'proxy'})
+
+config = {
+    'log': {'loglevel': 'debug'},
+    'inbounds': [{
+        'tag': 'transparent',
+        'listen': '127.0.0.1',
+        'port': 12345,
+        'protocol': 'dokodemo-door',
+        'settings': {'network': 'tcp', 'followRedirect': True},
+        'sniffing': {
+            'enabled': True,
+            'destOverride': ['http', 'tls', 'quic'],
+            'routeOnly': True,
+        },
+    }],
+    'outbounds': [
+        proxy,
+        {
+            'tag': 'direct',
+            'protocol': 'freedom',
+            'settings': {},
+            'streamSettings': {'sockopt': {'mark': mark}},
+        },
+        {'tag': 'block', 'protocol': 'blackhole'},
+    ],
+    'routing': {'domainStrategy': 'AsIs', 'rules': rules},
+}
+Path(out_path).write_text(json.dumps(config, indent=2, ensure_ascii=False))
+PY
+
+sudo iptables -t nat -N "$CHAIN" 2>/dev/null || true
+sudo iptables -t nat -F "$CHAIN"
+sudo iptables -t nat -A "$CHAIN" -m mark --mark "$MARK" -j RETURN
+for cidr in \
+  0.0.0.0/8 \
+  10.0.0.0/8 \
+  127.0.0.0/8 \
+  169.254.0.0/16 \
+  172.16.0.0/12 \
+  192.168.0.0/16 \
+  224.0.0.0/4 \
+  240.0.0.0/4 \
+  85.234.107.29/32 \
+  81.85.77.10/32; do
+  sudo iptables -t nat -A "$CHAIN" -d "$cidr" -j RETURN
+done
+sudo iptables -t nat -A "$CHAIN" -p tcp -m multiport --dports 80,443 -j REDIRECT --to-ports "$PORT"
+sudo iptables -t nat -C OUTPUT -p tcp -j "$CHAIN" 2>/dev/null || \
+  sudo iptables -t nat -A OUTPUT -p tcp -j "$CHAIN"
+
+log "config=$CLIENT_CONFIG domains=$DOMAIN_FILE redirect=tcp/80,443->127.0.0.1:$PORT"
+"$XRAY_BIN" run -c "$tmp" &
+XRAY_PID=$!
+wait "$XRAY_PID"

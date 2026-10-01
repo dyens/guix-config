@@ -133,6 +133,8 @@ startx
 | `home/ssh.scm` | `~/.ssh/config`, ключ GitLab из sops (входит в base) | — |
 | `home/claude.scm` | Claude Code: `settings.json`, скиллы, хук уведомлений (входит в base) | — |
 | `home/pi.scm` | Pi packages/extensions: `npm:pi-subagents`, `npm:pi-web-access`, ruclaw skills (входит в base) | `pi update --extensions` |
+| `home/dyvpn.scm` | helper-скрипты `dyvpn-iptables`/`dyvpn-stop-iptables` для transparent Xray через iptables | `homerec` |
+| `files/dyvpn/` | исходники helper-скриптов dyvpn | — |
 | `files/pi-ruclaw/skills/` | свои Pi skills для ruclaw, раскладываются в `~/.config/pi-ruclaw/skills` | `homerec` |
 | `home/kube.scm` | kubeconfig'и кластеров из sops в `~/k8s` (входит в base) | — |
 | `files/secrets/kube.yaml` | kubeconfig'и, по ключу на кластер, зашифрованы sops | `sops files/secrets/kube.yaml` |
