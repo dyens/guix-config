@@ -119,9 +119,9 @@
                     ("la"  . "ls -A")
                     ("k"   . "kubectl")
                     ("pi-ruclaw" . "cd /home/dyens/dev/croc/ruclaw && direnv exec . env LD_LIBRARY_PATH=\"$HOME/.guix-home/profile/lib:$HOME/.guix-profile/lib:/run/current-system/profile/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\" pi --skill /home/dyens/.config/pi-ruclaw/skills")
-                    ("dyvpn-timeweb" . "dyvpn-iptables timeweb")
-                    ("dyvpn-fornex" . "dyvpn-iptables fornex")
-                    ("dyvpn-stop" . "dyvpn-stop-iptables")
+                    ("dyvpn-timeweb" . "$HOME/.local/bin/dyvpn-iptables timeweb")
+                    ("dyvpn-fornex" . "$HOME/.local/bin/dyvpn-iptables fornex")
+                    ("dyvpn-stop" . "$HOME/.local/bin/dyvpn-stop-iptables")
                     ("gs"  . "git status")
                     ("gd"  . "git diff")
                     ;; sops ищет age-ключ в ~/.config/sops/age/keys.txt,
