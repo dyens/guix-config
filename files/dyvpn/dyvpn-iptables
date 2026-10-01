@@ -8,6 +8,10 @@ MARK=${DYVPN_MARK:-0xff}
 DOMAIN_FILE=${DYVPN_DOMAIN_FILE:-$HOME/.config/dyvpn/domains.txt}
 XRAY_BIN=${XRAY_BIN:-xray}
 PYTHON=${PYTHON:-python3}
+IPTABLES=${IPTABLES:-/run/current-system/profile/sbin/iptables}
+if [ ! -x "$IPTABLES" ]; then
+  IPTABLES=$(command -v iptables || true)
+fi
 CONFIG_ARG=${1:-timeweb}
 
 log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
@@ -47,9 +51,9 @@ cleanup() {
     kill "$XRAY_PID" 2>/dev/null || true
     wait "$XRAY_PID" 2>/dev/null || true
   fi
-  sudo iptables -t nat -D OUTPUT -p tcp -j "$CHAIN" 2>/dev/null || true
-  sudo iptables -t nat -F "$CHAIN" 2>/dev/null || true
-  sudo iptables -t nat -X "$CHAIN" 2>/dev/null || true
+  sudo "$IPTABLES" -t nat -D OUTPUT -p tcp -j "$CHAIN" 2>/dev/null || true
+  sudo "$IPTABLES" -t nat -F "$CHAIN" 2>/dev/null || true
+  sudo "$IPTABLES" -t nat -X "$CHAIN" 2>/dev/null || true
   rm -f "$tmp"
 }
 trap cleanup EXIT INT TERM
@@ -170,9 +174,14 @@ config = {
 Path(out_path).write_text(json.dumps(config, indent=2, ensure_ascii=False))
 PY
 
-sudo iptables -t nat -N "$CHAIN" 2>/dev/null || true
-sudo iptables -t nat -F "$CHAIN"
-sudo iptables -t nat -A "$CHAIN" -m mark --mark "$MARK" -j RETURN
+if [ -z "$IPTABLES" ] || [ ! -x "$IPTABLES" ]; then
+  echo "iptables not found; run sysrec to install the system package, or set IPTABLES=/path/to/iptables" >&2
+  exit 1
+fi
+
+sudo "$IPTABLES" -t nat -N "$CHAIN" 2>/dev/null || true
+sudo "$IPTABLES" -t nat -F "$CHAIN"
+sudo "$IPTABLES" -t nat -A "$CHAIN" -m mark --mark "$MARK" -j RETURN
 for cidr in \
   0.0.0.0/8 \
   10.0.0.0/8 \
@@ -184,11 +193,11 @@ for cidr in \
   240.0.0.0/4 \
   85.234.107.29/32 \
   81.85.77.10/32; do
-  sudo iptables -t nat -A "$CHAIN" -d "$cidr" -j RETURN
+  sudo "$IPTABLES" -t nat -A "$CHAIN" -d "$cidr" -j RETURN
 done
-sudo iptables -t nat -A "$CHAIN" -p tcp -m multiport --dports 80,443 -j REDIRECT --to-ports "$PORT"
-sudo iptables -t nat -C OUTPUT -p tcp -j "$CHAIN" 2>/dev/null || \
-  sudo iptables -t nat -A OUTPUT -p tcp -j "$CHAIN"
+sudo "$IPTABLES" -t nat -A "$CHAIN" -p tcp -m multiport --dports 80,443 -j REDIRECT --to-ports "$PORT"
+sudo "$IPTABLES" -t nat -C OUTPUT -p tcp -j "$CHAIN" 2>/dev/null || \
+  sudo "$IPTABLES" -t nat -A OUTPUT -p tcp -j "$CHAIN"
 
 log "config=$CLIENT_CONFIG domains=$DOMAIN_FILE redirect=tcp/80,443->127.0.0.1:$PORT"
 "$XRAY_BIN" run -c "$tmp" &

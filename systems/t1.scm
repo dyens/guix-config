@@ -100,7 +100,11 @@
   (sudoers-file
    (plain-file "sudoers" "root ALL=(ALL) ALL\n%wheel ALL=(ALL) NOPASSWD: ALL\n"))
 
-  (packages (cons (specification->package "git") %base-packages))
+  (packages (cons* (specification->package "git")
+                   ;; Для dyvpn-iptables helper'а из home/dyvpn.scm.
+                   ;; Ставим в system profile: скрипт запускает iptables через sudo.
+                   (specification->package "iptables")
+                   %base-packages))
 
   (services
    (append (list (service dhcpcd-service-type)
