@@ -5,6 +5,12 @@
 # Guix профили в PATH
 [ -f "$HOME/.guix-profile/etc/profile" ] && . "$HOME/.guix-profile/etc/profile"
 
+# Скрипты, которые Guix Home кладёт через home-files-service-type.
+case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+
 export EDITOR=vim
 export HISTSIZE=10000
 export HISTFILESIZE=100000
