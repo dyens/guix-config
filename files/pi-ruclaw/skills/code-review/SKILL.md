@@ -1,310 +1,169 @@
 ---
 name: code-review
-description: "Review a RuClaw diff since a fixed point along two axes: repo standards and spec conformance. Uses parallel subagents when available."
+description: "Review a RuClaw local diff or GitLab MR against project standards, its full spec, and correctness invariants. Requires complete primary-batch coverage and explicit verification gaps."
 ---
 
 # Code Review for RuClaw
 
-Review a local diff or GitLab MR on two separate axes.
+Review on three axes: **standards**, **spec conformance**, and **correctness under failures/concurrency**. Never equate a green test suite or a completed review with absence of defects. Do not fix code or post comments unless requested.
 
-Default local form, only when the branch under review is currently checked out:
+All helper paths below are relative to this skill directory. Resolve them against the loaded SKILL.md, not the checkout.
 
-```bash
-git diff <review-base>...HEAD
-```
+## 1. Freeze the evidence
 
-Do **not** blindly use `HEAD`. Pick the correct head for the thing being reviewed:
-
-- checked-out local feature branch: `HEAD` is OK;
-- GitLab MR: use fetched MR ref `origin/merge-requests/<iid>/head`;
-- another local/remote branch: use that branch/ref explicitly.
-
-Pick the correct base too:
-
-- full feature/MR review: merge-base with the target branch, usually `origin/develop`, or GitLab MR `base_sha`;
-- first sub-ticket on a fresh branch: `origin/develop`;
-- later sub-ticket review: previous pushed feature-branch tip, usually `origin/<feature-branch>`;
-- hotfix/release work: the actual target branch/ref, not `origin/develop` by habit.
-
-Always use three-dot diff (`<base>...<head>`) so Git compares from the merge-base / fixed base to the reviewed head.
-
-GitLab MR form: when the user passes a `gitlab.croc.ru/.../-/merge_requests/<iid>` URL, use the GitLab skill/helper to fetch the MR head and review:
-
-```bash
-git diff <base-sha>...origin/merge-requests/<iid>/head
-```
-
-1. **Standards**: does the change follow RuClaw/project standards?
-2. **Spec**: does the change implement the referenced spec/sub-ticket and avoid scope creep?
-
-## Subagents
-
-Yes: this skill is intended to run two independent subagents in parallel, one per axis, so their contexts and priorities do not pollute each other.
-
-In Pi, if subagent tools are not yet available, call `subagents_enable` and continue once the tools are available.
-
-**Do not assume a reviewer subagent can run git.** Before launching subagents, either:
-
-1. verify the selected agent has shell/git access; or
-2. build a parent-verified evidence bundle and pass it to read-only reviewers.
-
-If neither is possible, do the review in the parent session. Do not let a subagent silently review the working tree, the current MR ref, or another head when the requested snapshot is different.
-
-Recommended agents:
-
-- exact-snapshot review with git needed: use an agent with `bash` (`delegate`, `claude-code`, or another shell-capable reviewer), or run the git/evidence phase in the parent;
-- artifact-only independent critique: `reviewer` is OK only after the parent has produced the evidence bundle below.
-
-If subagents cannot be used, fall back to doing the two reviews sequentially and clearly say that no subagents were used.
-
-## Inputs
-
-Helper paths below are relative to this skill directory (`code-review/`); `../gitlab/scripts/gitlab.py` is relative to `code-review/` as a sibling skill. When executing from another working directory, resolve these paths against this `SKILL.md` directory.
-
-The user should provide either:
-
-- local review input: fixed point plus optional spec source;
-- GitLab MR URL plus optional spec source.
-
-For local review, fixed point is a commit, branch, tag, or ref.
-For MR review, run:
+For a GitLab MR, first read the sibling `../gitlab/SKILL.md` and run:
 
 ```bash
 ../gitlab/scripts/gitlab.py mr <MR-URL> --fetch
 ```
 
-Then use the printed base SHA and `origin/merge-requests/<iid>/head` as the diff endpoints.
+Use the returned target/base SHA and fetched MR head ref. Never blindly review HEAD:
 
-If fixed point/MR URL is missing, ask for it.
-If spec is missing, try to infer it from MR description, branch name, commit messages, and `docs/specs/` / `.scratch/`; otherwise ask.
+- checked-out local feature: explicit review-base and HEAD;
+- another branch: explicit branch/ref;
+- MR: fetched MR ref;
+- historical review/note: the exact historical commit, even if the MR has moved;
+- later sub-ticket: previous feature tip if reviewing only that increment.
 
-## RuClaw base/head rules
+Record exact base/head SHAs, merge-base, commits, stat and changed paths. Always use `base...head`. Confirm the intended target; a feature target is not necessarily develop. If the diff is empty or the requested snapshot is inaccessible, stop with REVIEW INCONCLUSIVE.
 
-Use the reviewed change's real target and real head, not a hard-coded `HEAD`.
+Read the **full originating spec/sub-ticket**, MR description and relevant project/package standards. Infer spec from branch, commits, `docs/specs/` and `.scratch/` if necessary. A description or summary is not equivalent to the full spec: if it is unavailable, explicitly mark spec verification incomplete; do not claim full conformance.
 
-- Full MR review: fetch MR metadata and use GitLab `base_sha` as base, `origin/merge-requests/<iid>/head` as head.
-- Full local feature branch review into develop: `origin/develop...HEAD` if the feature branch is checked out.
-- First sub-ticket on a fresh branch: `origin/develop...HEAD`.
-- Later sub-tickets after previous work was pushed: `origin/<feature-branch>...HEAD`.
-- Reviewing another branch without checking it out: `git diff <base>...<branch-or-ref>`.
-- Use three-dot diff: `git diff <base>...<head>`.
-
-## Preflight
-
-Before reviewing:
-
-1. Resolve the diff endpoints:
-   - local checked-out branch: `<review-base>` and `HEAD`;
-   - local/remote branch not checked out: `<review-base>` and `<branch-or-ref>`;
-   - MR URL: `<base-sha>` and `origin/merge-requests/<iid>/head` from the GitLab helper.
-2. If a user asks for a historical commit or note snapshot, fetch/verify that exact commit. If the MR ref has moved, review the explicit commit, not the current MR head.
-3. If using remote branches, `git fetch` first.
-4. Run `git rev-parse` for both endpoints and record exact SHAs.
-5. Run `git merge-base <base> <head>` and record it. If it is not `<base>` for an intended three-dot review, confirm the base is still right.
-6. Run `git diff --stat <base>...<head>` and ensure the diff is non-empty.
-7. Capture commits with `git log <base>..<head> --oneline`. Read with caution when `<base>` is a branch rather than an exact base SHA; the diff remains authoritative.
-8. Capture changed files with `git diff --name-only <base>...<head>`.
-9. Read the spec/sub-ticket.
-10. Identify standards sources, including:
-    - `AGENTS.md` files;
-    - `docs/agents/workflow.md` if workflow-related;
-    - relevant README/docs near touched code;
-    - package-specific config and conventions.
-
-## Evidence bundle for subagents
-
-When using subagents that might not have git/shell access, the parent must create an exact-snapshot bundle before launch. Prefer `.scratch/reviews/<ticket-or-mr>/<head-short>/`.
-
-Use the helper when available:
+Prepare a new exact-snapshot bundle:
 
 ```bash
 scripts/prepare-review-bundle.sh <base> <head> .scratch/reviews/<id>/<head-short>
-```
-
-It creates:
-
-- `metadata.txt` with exact refs, SHAs, and merge-base;
-- `stat.txt`;
-- `commits.txt`;
-- `files.txt`;
-- `diff.patch`;
-- `diff-u80.patch`;
-- `head-tree/`, a detached worktree at `<head>`.
-
-Equivalent manual commands:
-
-```bash
-mkdir -p .scratch/reviews/<id>/<head-short>
-git diff --stat <base>...<head> > .scratch/reviews/<id>/<head-short>/stat.txt
-git log --oneline <base>..<head> > .scratch/reviews/<id>/<head-short>/commits.txt
-git diff --name-only <base>...<head> > .scratch/reviews/<id>/<head-short>/files.txt
-git diff --find-renames --find-copies <base>...<head> > .scratch/reviews/<id>/<head-short>/diff.patch
-git diff --find-renames --find-copies --unified=80 <base>...<head> > .scratch/reviews/<id>/<head-short>/diff-u80.patch
-git worktree add --detach .scratch/reviews/<id>/<head-short>/head-tree <head>
-```
-
-For large diffs, also split the patch into path/topic batches and tell each subagent which batch(es) are authoritative. Use the lane helper when available:
-
-```bash
 scripts/prepare-review-lanes.sh .scratch/reviews/<id>/<head-short>
 ```
 
-Default lanes:
+Use a fresh directory for every run, including repeated review of the same SHA. Do not reuse results after changing evidence. The bundle includes metadata, diff, stat, commits and a detached head-tree. Inspect that snapshot, not the live working tree. Do not execute untrusted head-controlled scripts on the host; use an approved isolated test environment.
 
-- `tenant-theme`: end-to-end tenant theme/settings contract, tenant switch/logout/stale data;
-- `design-contrast`: design tokens, generated CSS, runtime variables, WCAG contrast, brand assets/bootstrap;
-- `accessibility-components`: keyboard navigation, focus visibility, ARIA, visible state, dialogs/chat/file UX;
-- `go-settings-api`: Go settings/API/authz/tenant correctness and tests;
-- `generated-parity`: generated OpenAPI/clients/docs/lockfiles and fragile parity checks;
-- `ops-readiness`: CI/release/bundle/provenance/rollback/security readiness.
+## 2. Enforce complete primary coverage
 
-For broad MRs, prefer a three-level review:
+`prepare-review-lanes.sh` partitions all changed paths into topic batches. Default topics are approval, chat runtime, A2UI, chat UI, contracts/artifacts, ops/docs, backend, frontend and services. Empty topics are omitted. Rules assign the first match as primary owner, while supplementary checks may overlap.
 
-1. topic lanes above, each with a focused brief;
-2. final synthesis from lane outputs;
-3. optional GitLab-ready comment draft.
+Defaults: at most 12 files, 800 patch lines or 64 KiB patch bytes per batch. A single oversized file is explicitly flagged and requires a dedicated semantic pass; do not silently truncate or skip generated artifacts. Read relevant source at head-tree when diff context is insufficient.
 
-Pass subagents:
+Outputs:
 
-- exact `base`, `head`, and merge-base SHAs;
-- paths to `stat.txt`, `commits.txt`, `files.txt`, `diff.patch`, `diff-u80.patch`, spec, and `head-tree` if created;
-- instruction: findings must cite the evidence bundle or `head-tree`, and must not use the live working tree as evidence.
+- `lanes/<batch>/{files.txt,diff.patch,diff-u80.patch,brief.md}`;
+- `coverage.json`: exact snapshot, primary assignment and evidence hashes;
+- `results.template.json`: pending status for every primary batch;
+- `unassigned.txt`: unknown paths.
 
-If a subagent reports that it cannot inspect the exact bundle, treat that lane as infrastructure failure and review that axis in the parent; do not publish “no findings” from an uninspected diff.
+Unknown paths **block preparation**. Inspect them and supply task-specific ordered rules with `--rules <json>`; the JSON is a list of `{ "lane": "name", "pattern": "regex", "brief": "risk-focused instructions" }`. Custom rules replace defaults. Do not add an unexplained catch-all to hide missing scope. Include every path, including deletions, fixtures, docs, migrations and build config.
 
-## Lane review briefs
-
-Use these focused prompts for large diffs before final synthesis:
-
-- **tenant-theme**: trace registry/storage/API/generated clients/frontend/tests end-to-end. Look for write/read contracts that are exposed but not applied, tenant switch/logout stale theme, hidden UI with still-live API, and backward-compatible handling of existing settings.
-- **design-contrast**: compare token generator checks with actually rendered CSS variables/components. Treat accessibility claims (WCAG, focus, keyboard, contrast) as contracts: verify the published colors/styles, not only source tokens.
-- **accessibility-components**: exercise mental keyboard/focus flows. Check `aria-*` is paired with visible focus/active state and that tests assert user-visible behavior, not only attributes.
-- **go-settings-api**: check tenant scoping, authz, nullable/zero-value semantics, row locking/merge behavior, generated contract compatibility, and registry docs/tests.
-- **generated-parity**: verify generated artifacts match source of truth; look for tests that parse by accident (regex first-match, stale generated files, lockfile drift).
-- **ops-readiness**: check whether CI actually covers changed behavior, whether visual/browser checks are mandatory, and whether rollback/provenance notes cover irreversible user-visible changes.
-
-## Standards axis brief
-
-Review only the diff. Report:
-
-- documented-standard violations, citing the standard file/rule;
-- security, compatibility, data-loss, multi-tenant, migration, concurrency, performance, or testability risks;
-- judgement-call smells only when actionable and not already covered by tooling.
-
-Smell baseline:
-
-- Mysterious Name
-- Duplicated Code
-- Feature Envy
-- Data Clumps
-- Primitive Obsession
-- Repeated Switches
-- Shotgun Surgery
-- Divergent Change
-- Speculative Generality
-- Message Chains
-- Middle Man
-- Refused Bequest
-
-Keep findings concrete: file/path, hunk or symbol, impact, suggested fix.
-
-## Spec axis brief
-
-Review only the diff against the spec/sub-ticket. Report:
-
-- requested behaviour missing or partial;
-- behaviour added but not requested;
-- implementation that appears to satisfy the text but is likely wrong;
-- acceptance criteria not covered by tests.
-
-Quote or reference the relevant spec/acceptance criterion.
-
-## Synthesis
-
-After lane/subagent reviews, do a parent-session synthesis before returning or posting. The synthesis is not another broad review from scratch; it is an evidence-checking editor pass over lane outputs.
-
-Synthesis duties:
-
-1. Read all lane outputs and the bundle `metadata.txt` / `stat.txt`.
-2. Deduplicate findings that describe the same root cause.
-3. Normalize severity:
-   - **high/blocker**: correctness, security, data loss, tenant isolation, public contract break, accessibility claim violation in shipped default UI, merge/readiness blocker;
-   - **medium**: user-visible defect, fragile test that can hide realistic drift, stale API/helper that can break future callers;
-   - **low**: cleanup, provenance, documentation, weak non-blocking test coverage.
-4. Drop findings that are not sufficiently evidenced by the bundle/head tree.
-5. Preserve lane evidence: each final finding must cite concrete files/symbols and impact.
-6. Separate merge-blocking findings from non-blocking notes.
-7. Record review gaps: lanes not run, checks not run, visual/browser/external gates not verified.
-8. State whether subagents were used, which lanes ran, and whether any lane had infrastructure failure.
-
-Recommended synthesis prompt:
-
-```text
-You are synthesizing code-review lane outputs, not re-reviewing from scratch.
-Inputs: bundle metadata/stat, lane outputs, optional spec/MR description.
-Deduplicate, normalize severity, discard weak claims, and produce a concise MR-ready review.
-Keep only actionable findings with file/path evidence, impact, and smallest fix.
-Do not invent findings that are not supported by a lane output or direct parent evidence.
-```
-
-## Aggregation format
-
-For small reviews without lanes, return:
-
-```markdown
-## Standards
-
-<findings or "No findings.">
-
-## Spec
-
-<findings or "No findings.">
-
-## Summary
-
-- Standards findings: <n>; worst: <short>
-- Spec findings: <n>; worst: <short>
-- Subagents: used / not used
-```
-
-For lane-based reviews, return:
-
-```markdown
-## Итог
-
-<MERGE / DO NOT MERGE / REVIEW INCONCLUSIVE> — <one-line reason>
-
-## Блокирующие замечания
-
-1. **[high] <title>** — `<primary path>`
-   - Evidence: <paths/symbols/behavior>
-   - Impact: <why it matters>
-   - Suggested fix: <smallest acceptable fix>
-
-## Неблокирующие замечания
-
-1. **[medium|low] <title>** — `<primary path>`
-   - Evidence: ...
-   - Impact: ...
-   - Suggested fix: ...
-
-## Проверено
-
-- Range: `<base>...<head>`; merge-base `<sha>`
-- Bundle: `<path>`
-- Lanes: `<lane list>`
-- Checks run / not run: `<commands or gaps>`
-- Subagents: used / not used; infrastructure failures: `<none/list>`
-```
-
-Do not fix findings unless the user asks.
-
-## Posting to GitLab MR
-
-If the review target is a GitLab MR and the user asks to add the review as an MR comment, prepare a concise Markdown note and post it with:
+Validate before dispatch:
 
 ```bash
-../gitlab/scripts/gitlab.py note <MR-URL-or-IID> --file /tmp/review.md
+scripts/prepare-review-lanes.sh <bundle> --validate
 ```
 
-Normally show the draft before posting unless the user explicitly instructed to post. Keep the note short: summary, Standards findings, Spec findings, checks/evidence. After posting, return the `Comment URL` printed by the GitLab helper.
+Coverage PASS only proves assignment integrity, not inspection. Never substitute agent count for coverage. For a broad MR, review all batches even after finding blockers.
+
+## 3. Review batches and end-to-end chains
+
+For each batch review all three axes:
+
+1. **Standards:** cite documented rules; check security, tenant/authz, compatibility, data loss, migrations, performance and testability. Report smells only if concrete and actionable.
+2. **Spec:** compare to the full requirements and acceptance criteria; identify missing/partial behavior, wrong implementation and unintended scope.
+3. **Correctness:** identify invariants and try to break them with reachable negative paths, edge cases and interleavings.
+
+Mandatory risk questions where applicable:
+
+- **Delivery/storage:** list ordered side effects and the durable acceptance point. Inject a failure between each pair. Can terminal/closed state precede accepted work? Check real PG transaction/locking/closed-state semantics, not only fake stores.
+- **Idempotency/recovery:** retry with both the same and a new ID after partial failure, timeout, reconnect and restart. Can the user recover without losing accepted work or duplicating effects?
+- **Queues/concurrency:** full capacity, terminal handoff, a new run/action during drain, cancellation and re-enqueue. Preserve accepted items, reservations and ordering. Write an explicit interleaving, not just “possible race”.
+- **Approval/schema:** editable-path permission and JSON kind are not full schema validation. Check enum, pattern, ranges and nested constraints against the authoritative tool schema before consuming the decision; then current policy/agent authority, revision, audit and provider history.
+- **Producer/consumer:** follow source → persistence → event/API → renderer → action → execution. Verify silent/card-only/attachment-only results, stale versions and displayed-result/action-payload equivalence.
+- **Branch/cardinality:** compare 0/1/many paths. Special-case single items must preserve the general forbidden/payable predicate; multi-proposal previews must correspond to the selected action.
+- **Frontend errors:** distinguish retryable conflict/network failures from permanent FORBIDDEN/NOT_FOUND/validation outcomes; check visible reasons, retry, edit/remove and stale state.
+- **Optional values:** absent versus false/0/empty; nil/off defaults; destructive fallback behavior.
+- **Artifacts/readiness:** authoritative generation, deployment compatibility, migration/rollback and actual CI applicability.
+
+A reviewer must follow related callers/callees outside its primary paths at the exact head. “Review only the diff” limits the scope of findings, not the evidence needed to prove them.
+
+Additionally assign an **integration pass** over critical cross-batch chains. For an A2UI/chat MR this includes acceptance → store → closure → queue/drain, background result → publication, amendment → schema/policy → dispatch, and preview → action. This supplements primary coverage, not replaces it.
+
+Report each finding as: severity, axis, path/symbol, reachable scenario, concrete evidence, violated invariant, bounded impact and smallest fix. Do not claim downstream payment/security harm unless demonstrated. Record checks not run and unresolved counterarguments.
+
+## 4. Independent challenge
+
+Delegation is authorized by this skill when invoked for review. If needed, call `subagents_enable`; read the pi-subagents skill before launching work. Verify reviewers can inspect the exact bundle. A lane that cannot read evidence is an infrastructure gap, never “no findings”. Direct sequential review is the fallback and must be disclosed.
+
+Partitioning batches is division of work, **not independent review**. For critical delivery/storage, approval, tenant/security or concurrent state transitions:
+
+1. Have a second reviewer independently inspect the same critical chain and invariants **without first seeing the first reviewer's findings**.
+2. Only then exchange findings and counterexamples.
+3. Ask each reviewer to falsify reachability, check existing guards and narrow unsupported impact.
+4. Parent personally verifies retained blocking chains at the exact snapshot.
+
+If resources/tools prevent the independent pass, record that gap and do not label the result independently reviewed. A different model is optional; a fresh evidence-based pass is essential. Never silently shorten coverage to fit the parallelism budget.
+
+Subagent handoff must include exact SHAs, bundle and batch paths, full spec, relevant standards, required invariants, evidence-access requirements and expected report path. Do not provide earlier findings in the independent first-pass handoff.
+
+## 5. Tests and completion gate
+
+Review existing test assertions for behavior, not just presence. For critical chains request or run in an approved environment:
+
+- failure injection between state change, prepare and durable accept;
+- real PG negative-path/replay tests;
+- deterministic queue/drain interleaving tests (use barriers, not sleeps);
+- permanent versus retryable frontend errors;
+- card-only background and 0/1/many/forbidden-item/multi-proposal cases;
+- authoritative OpenAPI/client/fixture regeneration and a clean artifact diff.
+
+Use `GOFLAGS=-tags=goolm` for Go; combine explicit tags with goolm. Use pnpm for UI and uv for services per project rules. Do not assert checks passed if only static inspection ran.
+
+Copy `results.template.json` to `results.json`. For every batch supply:
+
+```json
+{
+  "chat-runtime-01": {
+    "status": "reviewed",
+    "report": "reports/chat-runtime-01.md"
+  },
+  "approval-01": {
+    "status": "gap",
+    "report": "reports/approval-01.md",
+    "reason": "Exact evidence unavailable; requires another pass"
+  }
+}
+```
+
+The example is illustrative; use exactly the batch IDs in your manifest. Each report must state inspected scope, invariants, findings or no findings, and verification gaps. `reviewed` means inspection completed, **not** defect-free. Pending/missing results block completion. `gap` requires a reason and yields REVIEW INCONCLUSIVE.
+
+```bash
+scripts/prepare-review-lanes.sh <bundle> --validate --results <bundle>/results.json
+```
+
+Run before synthesis/publication. Mechanical validation cannot prove that a report is truthful; parent checks reports against their batch evidence. Independently record integration/second-pass results and runtime/artifact/spec gaps; batch completion does not close these gates.
+
+For an MR, inspect CI with the sibling GitLab helper:
+
+```bash
+../gitlab/scripts/gitlab.py ci <MR-URL> --trace
+```
+
+Require a successful pipeline on the exact reviewed head, or a verified merged-result candidate tied to that head and target. Check job applicability, skipped/manual mandatory jobs and feature-target workflow rules. A successful old pipeline, missing pipeline or unrelated integration stand is not this gate. Recheck the MR head/target tuple before publication; if it moved, describe the historical scope and review the delta before a current merge recommendation. Do not change GitLab merge settings or retry/push without authorization.
+
+## 6. Synthesis and output
+
+Deduplicate root causes, verify evidence, normalize severity and preserve concrete impact. Do not invent findings to fill coverage. Record real out-of-scope issues in `docs/superpowers/debt.md` per its format; known/deferred scope is not a newly discovered defect.
+
+Verdict:
+
+- **DO NOT MERGE:** confirmed blockers or missing mandatory readiness gates;
+- **REVIEW INCONCLUSIVE:** incomplete inspection/spec/required verification;
+- **MERGE:** only when required coverage and readiness gates are closed, not merely zero findings.
+
+Return a concise summary with:
+
+- blockers and non-blockers: scenario, paths, impact, fix;
+- exact range, merge-base and bundle;
+- primary coverage paths/batches, oversized-file treatment;
+- integration chains and independent passes completed/not completed;
+- actual tests/generation/CI run and outstanding gaps;
+- previous findings fixed/open, separating delta checks from fresh full review.
+
+Post only when asked, via `../gitlab/scripts/gitlab.py note <MR> --file <review.md>`. Normally show the draft unless explicitly authorized to post. Do not claim complete coverage from partial or infrastructure-failed reviews.

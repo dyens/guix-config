@@ -24,6 +24,10 @@ base_sha=$(git rev-parse --verify "${base_ref}^{commit}")
 head_sha=$(git rev-parse --verify "${head_ref}^{commit}")
 merge_base=$(git merge-base "$base_sha" "$head_sha")
 
+if [[ -e "$out_dir" ]] && [[ ! -d "$out_dir" || -n "$(ls -A "$out_dir")" ]]; then
+  echo "Refusing to reuse a non-empty bundle: $out_dir" >&2
+  exit 1
+fi
 mkdir -p "$out_dir"
 
 {
@@ -37,16 +41,10 @@ mkdir -p "$out_dir"
 
 git diff --stat "$base_sha...$head_sha" > "$out_dir/stat.txt"
 git log --oneline "$base_sha..$head_sha" > "$out_dir/commits.txt"
-git diff --name-only "$base_sha...$head_sha" > "$out_dir/files.txt"
-git diff --find-renames --find-copies "$base_sha...$head_sha" > "$out_dir/diff.patch"
-git diff --find-renames --find-copies --unified=80 "$base_sha...$head_sha" > "$out_dir/diff-u80.patch"
-
-if [[ -d "$out_dir/head-tree/.git" || -f "$out_dir/head-tree/.git" ]]; then
-  git worktree remove --force "$out_dir/head-tree"
-elif [[ -e "$out_dir/head-tree" ]]; then
-  echo "Refusing to overwrite non-worktree path: $out_dir/head-tree" >&2
-  exit 1
-fi
+# Both sides of renames are explicit primary coverage obligations.
+git diff --name-only --no-renames "$base_sha...$head_sha" > "$out_dir/files.txt"
+git diff --no-ext-diff --no-textconv --no-renames "$base_sha...$head_sha" > "$out_dir/diff.patch"
+git diff --no-ext-diff --no-textconv --no-renames --unified=80 "$base_sha...$head_sha" > "$out_dir/diff-u80.patch"
 
 git worktree add --detach "$out_dir/head-tree" "$head_sha" >/dev/null
 

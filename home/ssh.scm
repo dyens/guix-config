@@ -62,18 +62,130 @@
    (service home-openssh-service-type
             (home-openssh-configuration
              (hosts
-              (list (openssh-host
-                     (name "gitlab.croc.ru")
-                     (user "git")
-                     (identity-file (identity-file-for "croc-gitlab"))
-                     ;; Только этот ключ: иначе ssh перебирает все из агента
-                     ;; и ~/.ssh/id_*, и GitLab может отбить по числу попыток.
-                     (extra-content "  IdentitiesOnly yes\n"))
-                    (openssh-host
-                     (name "vm-gpu")
-                     (host-name "172.31.16.27")
-                     (user "ec2-user")
-                     (identity-file (identity-file-for "ruclaw-test-deploy"))
-                     ;; Только этот ключ: иначе ssh перебирает все из агента
-                     ;; и ~/.ssh/id_*, и GitLab может отбить по числу попыток.
-                     (extra-content "  IdentitiesOnly yes\n"))))))))
+              (list
+               ;; Из старого ~/.ssh/config
+               (openssh-host
+                (name "github.com")
+                (host-name "github.com")
+                (user "git")
+                (identity-file "~/.ssh/id_ed25519"))
+               (openssh-host
+                (name "gitlab.croc.ru")
+                (host-name "gitlab.croc.ru")
+                (user "git")
+                (identity-file (identity-file-for "croc-gitlab"))
+                ;; Только этот ключ: иначе ssh перебирает все из агента
+                ;; и ~/.ssh/id_*, и GitLab может отбить по числу попыток.
+                (extra-content "  IdentitiesOnly yes\n"))
+               (openssh-host
+                (name "gist.github.com")
+                (host-name "gist.github.com")
+                (user "git")
+                (identity-file "~/.ssh/id_ed25519"))
+               (openssh-host
+                (name "github.com-qs")
+                (host-name "github.com")
+                (user "git")
+                (identity-file "~/.ssh/quantusoft_git"))
+               (openssh-host
+                (name "git.service.t1-cloud.ru")
+                (host-name "git.service.t1-cloud.ru")
+                (user "git")
+                (identity-file "~/.ssh/t1-cloud"))
+               (openssh-host
+                (name "git.int.nova-platform.io")
+                (host-name "git.int.nova-platform.io")
+                (user "git")
+                (identity-file "~/.ssh/nova"))
+               (openssh-host
+                (name "gitlab-dev.t1.cloud")
+                (host-name "gitlab-dev.t1.cloud")
+                (user "git")
+                (identity-file "~/.ssh/t1gitlab"))
+               (openssh-host
+                (name "gitlab-prod.t1.cloud")
+                (host-name "gitlab-prod.t1.cloud")
+                (user "git")
+                (identity-file "~/.ssh/t1gitlab"))
+               (openssh-host
+                (name "c2-178-216-96-208.elastic.cloud.croc.ru")
+                (host-name "c2-178-216-96-208.elastic.cloud.croc.ru")
+                (identity-file "~/.ssh/3110runner"))
+               (openssh-host
+                (name "user-audit")
+                (host-name "10.15.20.116")
+                (user "user-audit")
+                (identity-file "~/.ssh/user-audit"))
+               (openssh-host
+                (name "ai-ift-worker1")
+                (host-name "10.13.241.9")
+                (user "dyens")
+                (identity-file "~/.ssh/ai_cluster2"))
+               (openssh-host
+                (name "ai-ift-master")
+                (host-name "10.13.241.6")
+                (user "dyens")
+                (identity-file "~/.ssh/ai_cluster2"))
+               (openssh-host
+                (name "nova-andrey")
+                (host-name "172.31.0.12")
+                (user "ec2-user")
+                (identity-file "~/.ssh/nova"))
+               (openssh-host
+                (name "ai-dev-master")
+                (host-name "10.13.241.5")
+                (user "dyens")
+                (identity-file "~/.ssh/ai_cluster2"))
+               (openssh-host
+                (name "ai-dev-master-ai-3")
+                (host-name "10.13.241.7")
+                (user "dyens")
+                (identity-file "~/.ssh/ai_cluster2"))
+               (openssh-host
+                (name "ai-dev-worker-ai-1")
+                (host-name "10.13.241.8")
+                (user "dyens")
+                (identity-file "~/.ssh/ai_cluster2"))
+               (openssh-host
+                (name "dyvpn")
+                (host-name "85.234.107.29")
+                (user "dyens")
+                (identity-file "~/.ssh/timeweb"))
+               (openssh-host
+                (name "d3kapustin")
+                (host-name "10.128.0.54")
+                (user "dyens")
+                (identity-file "~/.ssh/t1-cloud")
+                (extra-content "  ServerAliveInterval 30\n  ServerAliveCountMax 5\n"))
+               (openssh-host
+                (name "t1")
+                (host-name "45.145.190.133")
+                (user "dyens")
+                (identity-file "~/.ssh/t1-cloud")
+                (extra-content "  ServerAliveInterval 30\n  ServerAliveCountMax 5\n  SendEnv COLORTERM\n"))
+               (openssh-host
+                (name "mlhub-dev-sample")
+                (host-name "185.159.111.104")
+                (port 2222)
+                (user "mluser@dev-sample"))
+               (openssh-host
+                (name "fornex")
+                (host-name "81.85.77.10")
+                (user "dyens")
+                (identity-file "~/.ssh/fornex"))
+               (openssh-host
+                (name "guixvm")
+                (host-name "127.0.0.1")
+                (user "dyens")
+                (port 10022)
+                (identity-file "~/.ssh/guix"))
+
+               ;; Дополнительный host, которого не было в backup-конфиге.
+               (openssh-host
+                (name "vm-gpu")
+                (host-name "172.31.16.27")
+                (user "ec2-user")
+                (identity-file (identity-file-for "ruclaw-test-deploy"))
+                ;; Только этот ключ: иначе ssh перебирает все из агента
+                ;; и ~/.ssh/id_*, и GitLab может отбить по числу попыток.
+                (extra-content "  IdentitiesOnly yes\n"))))))))

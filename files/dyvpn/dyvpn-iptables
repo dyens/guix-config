@@ -1,5 +1,5 @@
 #!/bin/sh
-set -eu
+set -eux
 
 BASE_DIR=${DYVPN_DIR:-/home/dyens/vpn/dyvpn}
 CHAIN=${DYVPN_CHAIN:-DYVPN_XRAY}
