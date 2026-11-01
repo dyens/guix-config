@@ -82,6 +82,8 @@
           "unzip"
           ;; Нужен `pi install' / `pi update --extensions' для npm: Pi packages.
           "node"
+          ;; Стандартная библиотека для pi-ruclaw, runner и Python skills.
+          "python"
           ;; Даёт libgcc_s.so.1: он нужен standalone-бинарнику Pi во время OAuth/login.
           "gcc-toolchain"
           "vim"
@@ -110,6 +112,15 @@
                       home-environment-variables-service-type
                       `(("GUIX_CONFIG" . ,repo)))
 
+      ;; On foreign distros (Fedora here) Guix Home's generated
+      ;; setup-environment can leave XDG_DATA_DIRS without the host
+      ;; system locations.  Then GNOME/KDE menus stop seeing RPM apps
+      ;; from /usr/share/applications (Firefox, Telegram, Dion, ...).
+      (simple-service 'foreign-distro-xdg-dirs
+                      home-environment-variables-service-type
+                      '(("XDG_DATA_DIRS" . "$HOME/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:$HOME/.guix-home/profile/share:$HOME/.guix-profile/share:/run/current-system/profile/share:/usr/local/share:/usr/share:/var/lib/snapd/desktop")
+                        ("XDG_CONFIG_DIRS" . "$HOME/.guix-home/profile/etc/xdg:$HOME/.guix-profile/etc/xdg:/etc/xdg")))
+
       (service home-bash-service-type
                (home-bash-configuration
                 (aliases
@@ -117,7 +128,10 @@
                   '(("ll"  . "ls -alF")
                     ("la"  . "ls -A")
                     ("k"   . "kubectl")
-                    ("pi-ruclaw" . "cd /home/dyens/dev/croc/ruclaw && direnv exec . env LD_LIBRARY_PATH=\"$HOME/.guix-home/profile/lib:$HOME/.guix-profile/lib:/run/current-system/profile/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\" pi --skill /home/dyens/.config/pi-ruclaw/skills")
+                    ("jira-my-issues" . "jira issue list -q 'assignee = currentUser() AND statusCategory != Done'")
+                    ("pi-ruclaw" . "python3 /home/dyens/.config/pi-ruclaw/launch.py")
+                    ("pi-ruclaw-runner" . "python3 /home/dyens/.config/pi-ruclaw/runner/run.py")
+                    ("pi-ruclaw-lite" . "python3 /home/dyens/.config/pi-ruclaw/lab/launch.py")
                     ("dyvpn-timeweb" . "$HOME/.local/bin/dyvpn-iptables timeweb")
                     ("dyvpn-fornex" . "$HOME/.local/bin/dyvpn-iptables fornex")
                     ("dyvpn-stop" . "$HOME/.local/bin/dyvpn-stop-iptables")

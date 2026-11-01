@@ -1,0 +1,16 @@
+{
+  "providers": {
+    "crocgpt": {
+      "name": "CROCGPT",
+      "baseUrl": "https://crocgpt.croc.ru/Minimax",
+      "api": "openai-completions",
+      "apiKey": "${CROCGPT_KEY}",
+      "models": [
+        {
+          "id": "DeepSeek-V4-Flash",
+          "name": "DeepSeek V4 Flash (CROCGPT)"
+        }
+      ]
+    }
+  }
+}

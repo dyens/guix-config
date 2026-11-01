@@ -4,7 +4,9 @@
 
 (defun dy-get-git-origin-url ()
   "https-адрес remote origin."
-  (let ((url (magit-git-output "config" "--get" "remote.origin.url")))
+  (let ((url (magit-git-string "config" "--get" "remote.origin.url")))
+    (unless url
+      (user-error "Не задан remote origin"))
     (cond
      ((string-match "\\`git@\\([^:]+\\):\\(.*?\\)\\(?:\\.git\\)?\\'" url)
       (format "https://%s/%s" (match-string 1 url) (match-string 2 url)))

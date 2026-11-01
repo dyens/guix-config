@@ -141,7 +141,8 @@ for item in entries(domains_path):
         else:
             domains.append('domain:' + item)
 
-rules = []
+# Explicit SOCKS requests always use VPN, regardless of the domain/IP list.
+rules = [{'type': 'field', 'inboundTag': ['socks'], 'outboundTag': 'proxy'}]
 if domains:
     rules.append({'type': 'field', 'domain': domains, 'outboundTag': 'proxy'})
 if ips:
@@ -160,9 +161,16 @@ config = {
             'destOverride': ['http', 'tls', 'quic'],
             'routeOnly': True,
         },
+    }, {
+        'tag': 'socks',
+        'listen': '127.0.0.1',
+        'port': 1080,
+        'protocol': 'socks',
+        'settings': {'auth': 'noauth', 'udp': False},
     }],
     # Xray's fallback for non-matching traffic is the first outbound.  Keep
-    # direct first: only explicit domain/IP rules from domains.txt use proxy.
+    # direct first: transparent traffic uses proxy only for domains.txt matches.
+    # SOCKS traffic is routed to proxy by its inboundTag rule.
     'outbounds': [
         {
             'tag': 'direct',
@@ -205,7 +213,7 @@ while sudo "$IPTABLES" -t nat -D OUTPUT -p udp --dport 443 -j "$CHAIN" 2>/dev/nu
 while sudo "$IPTABLES" -t nat -D OUTPUT -p udp -j "$CHAIN" 2>/dev/null; do :; done
 sudo "$IPTABLES" -t nat -A OUTPUT -p tcp -j "$CHAIN"
 
-log "config=$CLIENT_CONFIG domains=$DOMAIN_FILE redirect=tcp/80,443->127.0.0.1:$PORT"
+log "config=$CLIENT_CONFIG domains=$DOMAIN_FILE redirect=tcp/80,443->127.0.0.1:$PORT socks5=127.0.0.1:1080->proxy"
 # Xray needs CAP_NET_ADMIN/root for sockopt.mark (SO_MARK).  Without it,
 # direct outbounds are redirected again by our OUTPUT rule and can loop, and
 # logs show: "failed to set SO_MARK > operation not permitted".

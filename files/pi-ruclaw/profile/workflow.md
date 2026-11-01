@@ -1,0 +1,22 @@
+# Default implementation workflow: plan-cycle v2
+
+When the user authorizes implementation in this RuClaw profile, read
+PI_RUCLAW_ROOT/skills/implement/SKILL.md and use that process, even if the request
+was plain text rather than /skill:implement. Do not start implementation from an
+advisory question, review-only request or unresolved task scope.
+
+After intake, before planning/product edits, save checkpoint 0 with plan_cycle_start.
+Use a short sequential plan, plan_cycle_next between steps and final independent
+ruclaw-plan-reviewer. Only the parent writes product code.
+Standing USER permission for implement: ordinary local commits of task-owned changes
+on the agreed task branch, and local Docker/Compose for isolated task-owned stands
+and dependencies. Do not ask again within these bounds; record this authority in the
+plan. Explicit task-specific restrictions/revocations override defaults. Push/MR,
+branch switching/history rewriting, shared/prod changes, global prune, volume deletion,
+persistent-data resets and privileged/security-bypass operations need separate authority.
+See implement's Standing implement permissions for exact bounds; tools alone grant none.
+Existing v2 tasks resume their saved plan. Separate tasks after an agreed endpoint use a fresh session + compact handoff,
+not an ever-growing old plan/base; settle children and make the previous writer idle.
+Cheap applicable CI-preflight precedes final review; heavy checks may overlap static
+review on the same fixed candidate with isolated resources. All required gates still
+apply. Legacy sessions require explicit --legacy-cycles recovery, not new onboarding.

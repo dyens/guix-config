@@ -134,11 +134,31 @@ class ReviewBatchesTest(unittest.TestCase):
         files = (output / "files.txt").read_text().splitlines()
         self.assertIn("internal/tools/renamed.go", files)
         self.assertIn("internal/tools/new.go", files)
-        self.assertEqual(self.git("-C", str(output / "head-tree"), "rev-parse", "HEAD").strip(), self.head)
+        self.assertEqual((output / "head-tree/internal/tools/new.go").read_text(), "rename\n")
+        self.assertFalse((output / "head-tree/.git").exists())
+        self.assertEqual(len(self.git("worktree", "list", "--porcelain").split("worktree ")) - 1, 1)
         metadata = (output / "metadata.txt").read_bytes()
         result = subprocess.run(command, cwd=self.repo, text=True, capture_output=True)
         self.assertEqual(result.returncode, 1)
         self.assertEqual((output / "metadata.txt").read_bytes(), metadata)
+
+    def test_archive_preserves_export_ignored_and_substituted_blobs_and_modes(self):
+        self.put('.gitattributes', 'secret.go export-ignore\nversion.txt export-subst\n')
+        self.put('secret.go', 'must remain visible\n')
+        self.put('version.txt', '$Format:%H$\n')
+        self.put('executable.sh', '#!/bin/sh\nexit 0\n')
+        (self.repo / 'executable.sh').chmod(0o755)
+        (self.repo / 'link').symlink_to('secret.go')
+        self.git('add', '.'); self.git('commit', '-qm', 'archive adversarial attributes')
+        head = self.git('rev-parse', 'HEAD').strip()
+        output = self.repo / 'archive bundle'
+        result = subprocess.run(['bash', str(SCRIPT.with_name('prepare-review-bundle.sh')), self.base, head, str(output)], cwd=self.repo, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        tree = output / 'head-tree'
+        self.assertEqual((tree / 'secret.go').read_text(), 'must remain visible\n')
+        self.assertEqual((tree / 'version.txt').read_text(), '$Format:%H$\n')
+        self.assertTrue((tree / 'executable.sh').stat().st_mode & 0o111)
+        self.assertTrue((tree / 'link').is_symlink())
 
     def test_snapshot_mismatch_blocks(self):
         self.run_script()

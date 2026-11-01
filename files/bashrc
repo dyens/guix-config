@@ -2,8 +2,19 @@
 # Правится ЗДЕСЬ, а не в ~/.bashrc — тот станет симлинком в /gnu/store
 # и будет read-only.
 
-# Guix профили в PATH
-[ -f "$HOME/.guix-profile/etc/profile" ] && . "$HOME/.guix-profile/etc/profile"
+# Guix профили в PATH.
+# На Fedora терминал часто запускает non-login shell и не читает ~/.profile,
+# поэтому Guix Home окружение нужно подхватить и из ~/.bashrc.
+# Внутри guix shell сохраняем окружение проекта: глобальные профили
+# иначе подменяют PATH и выбирают другой SBCL без зависимостей проекта.
+if [ -z "${GUIX_ENVIRONMENT:-}" ]; then
+    if [ -f "$HOME/.guix-home/setup-environment" ]; then
+        HOME_ENVIRONMENT="$HOME/.guix-home"
+        . "$HOME_ENVIRONMENT/setup-environment"
+        unset HOME_ENVIRONMENT
+    fi
+    [ -f "$HOME/.guix-profile/etc/profile" ] && . "$HOME/.guix-profile/etc/profile"
+fi
 
 # Скрипты, которые Guix Home кладёт через home-files-service-type.
 case ":$PATH:" in
@@ -34,6 +45,13 @@ export DISABLE_UPDATES=1
 pi() {
     LD_LIBRARY_PATH="$HOME/.guix-home/profile/lib:$HOME/.guix-profile/lib:/run/current-system/profile/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
         command pi "$@"
+}
+
+# Emacs берём из Guix Home и явно запускаем декларативный конфиг из
+# ~/.config/emacs. Иначе старый ~/.emacs.d/init.el имеет приоритет и тянет
+# package.el/ELPA-модули вроде vterm-module.so, несовместимые с Guix Emacs.
+emacs() {
+    env -u LD_LIBRARY_PATH command emacs --init-directory "$HOME/.config/emacs" "$@"
 }
 
 # direnv: .envrc проекта (окружение из manifest.scm, переменные) —

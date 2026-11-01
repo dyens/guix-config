@@ -10,7 +10,8 @@ Break a spec, plan, or current conversation into local sub-tickets for implement
 
 ## RuClaw workflow constraints
 
-- Respect `docs/agents/workflow.md`.
+- Use the RuClaw profile and relevant code/contracts, not repository workflow
+  bulk-reading. Resolve material scope contradictions before decomposing work.
 - Do not create Jira issues.
 - Do not create branches.
 - Sub-tickets are local files under `.scratch/<TICKET>/issues/`.
@@ -19,7 +20,8 @@ Break a spec, plan, or current conversation into local sub-tickets for implement
 
 ## Process
 
-1. Read the supplied spec path, ticket, or conversation context.
+1. Read the supplied spec and acceptance criteria, or identify the agreed scope
+   in the ticket/conversation. Do not silently turn unresolved assumptions into tasks.
 2. Explore the codebase enough to understand vertical slices and dependencies.
 3. Draft tracer-bullet sub-tickets.
 4. Present the proposed breakdown before writing files.
@@ -30,7 +32,10 @@ Break a spec, plan, or current conversation into local sub-tickets for implement
 
 - Prefer vertical tracer bullets: narrow but complete paths through schema/API/backend/UI/tests where applicable.
 - Each completed ticket should be independently verifiable.
-- Each ticket should fit in one fresh context window.
+- Keep each ticket bounded enough for a fresh execution context; include source
+  links and required invariants rather than copying the full spec into every file.
+- Assign every source acceptance criterion to a ticket; identify shared checks
+  and prerequisites. Do not drop cross-component validation between slices.
 - Prefactoring can be its own first ticket if it makes the change easier.
 - For wide refactors, use expand → migrate batches → contract.
 
@@ -57,12 +62,17 @@ Number tickets in dependency order, blockers first.
 
 ## Context
 
-<short context and links to spec/ADR if useful>
+<source spec/task path and relevant criteria/decisions; links to applicable contracts>
 
 ## Acceptance criteria
 
 - [ ] <criterion 1>
 - [ ] <criterion 2>
+
+## Verification
+
+<checks/test scopes for these criteria, prerequisites, and any shared final gate;
+consult the profile's testing.md and current scripts, not future command syntax>
 
 ## Implementation notes
 

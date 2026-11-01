@@ -7,7 +7,7 @@ Usage: prepare-review-bundle.sh <base> <head> <out-dir>
 
 Creates an exact-snapshot evidence bundle for code review subagents:
   stat.txt, commits.txt, files.txt, diff.patch, diff-u80.patch, metadata.txt,
-  and a detached head-tree worktree.
+  and an exact head-tree export (no worktree, hooks or checkout filters).
 USAGE
 }
 
@@ -46,7 +46,16 @@ git diff --name-only --no-renames "$base_sha...$head_sha" > "$out_dir/files.txt"
 git diff --no-ext-diff --no-textconv --no-renames "$base_sha...$head_sha" > "$out_dir/diff.patch"
 git diff --no-ext-diff --no-textconv --no-renames --unified=80 "$base_sha...$head_sha" > "$out_dir/diff-u80.patch"
 
-git worktree add --detach "$out_dir/head-tree" "$head_sha" >/dev/null
+# A temporary bare repository shares only objects, not checkout configuration.
+# Override archive attributes so export-ignore/export-subst cannot hide or change
+# files under review. No Git worktree, hooks or smudge filters are involved.
+archive_git=$(mktemp -d)
+trap 'rm -rf -- "$archive_git"' EXIT
+git init --bare -q "$archive_git"
+printf '* -export-ignore -export-subst\n' > "$archive_git/info/attributes"
+objects=$(git rev-parse --path-format=absolute --git-path objects)
+mkdir "$out_dir/head-tree"
+GIT_OBJECT_DIRECTORY="$objects" git --git-dir="$archive_git" archive "$head_sha" | tar -xf - -C "$out_dir/head-tree"
 
 printf 'Review bundle created at %s\n' "$out_dir"
 printf 'Base: %s\nHead: %s\nMerge-base: %s\n' "$base_sha" "$head_sha" "$merge_base"

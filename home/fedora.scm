@@ -1,5 +1,5 @@
-(add-to-load-path (dirname (dirname (current-filename))))
- (use-modules (home base))
+(add-to-load-path "/home/dyens/vms/guix-config")
+(use-modules (home base))
 
 (make-home
  #:repo "/home/dyens/vms/guix-config"

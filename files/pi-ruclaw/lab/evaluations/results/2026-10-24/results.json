@@ -1,0 +1,105 @@
+{
+  "go": "go version go1.27.1 linux/amd64",
+  "command": [
+    "/usr/local/go/bin/go",
+    "test",
+    "-tags=goolm",
+    "-mod=readonly",
+    "-p=2",
+    "-count=1",
+    "-json",
+    "-timeout=30s",
+    "-run=^TestQuality",
+    "./internal/agent",
+    "./internal/credbroker/a2abroker",
+    "./internal/credbroker/server"
+  ],
+  "network": "GOPROXY off; owned ephemeral HTTP loopback and TLS private-interface fixtures; hostname resolution; not an OS sandbox",
+  "runner_sha256": "86c10d47efed7e159b2da97a415046f9c2dd63bed54057cbf9cde3f828663555",
+  "shared_go_caches": true,
+  "probes": {
+    "selection_test.go": "1fffe7d5c08b0084ef65863d004bef553f53fd7a32f73f0194c723d6f43f8f14",
+    "polling_test.go": "ebbc1bf64204d115cae4ba864336fbcc413541c39896dcf46196b67dbd61d152",
+    "envelope_test.go": "682c170a602afa96414d377ff02081148906d9aee805199d1566e8cfbc6ceebd"
+  },
+  "candidates": {
+    "lite": {
+      "sha": "8e8790416963fd8185df0aa40b7746badad8474a",
+      "archive_sha256": "4490252eae7a0eeb49e1c4dd1abcddbf739407c18b9a9aa3cb1630782f66a430",
+      "exit_code": 1,
+      "coverage_ok": true,
+      "seconds": 13.04,
+      "tests": {
+        "ruclaw/internal/agent::TestQualityFinalSelectionAfterTool/allow": "pass",
+        "ruclaw/internal/agent::TestQualityFinalSelectionAfterTool/deny": "fail",
+        "ruclaw/internal/agent::TestQualityFinalSelectionAfterTool/intermediate": "pass",
+        "ruclaw/internal/agent::TestQualityFinalSelectionAfterTool": "fail",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/direct/16": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/direct/768000": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/direct/1048576": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/fallback/16": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/fallback/768000": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/fallback/1048576": "fail",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/sse/16": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/sse/768000": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/sse/1048576": "fail",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope": "fail",
+        "ruclaw/internal/credbroker/a2abroker::TestQualityPollingProgressBeforeRelease": "fail"
+      },
+      "diagnostics": [
+        "quality_probe_test.go:29: product TLS fixture origin=https://k3s.local:35749 private_address=192.168.0.111",
+        "quality_probe_test.go:64: deny kept forbidden/unselected final attachment IDs: [6c392d37-724b-487d-84de-27750dbf297b]",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:46007 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:33013 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:45161 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:33465 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:42755 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:40025 private_address=192.168.0.111",
+        "quality_probe_test.go:75: lost whole Message instead of bounded file result: kind= code= err=a2a: outcome_unknown",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:35721 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:42275 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:36093 private_address=192.168.0.111",
+        "quality_probe_test.go:75: lost whole Message instead of bounded file result: kind=error code=outcome_unknown err=<nil>",
+        "quality_probe_test.go:103: first working snapshot withheld while second physical poll is blocked"
+      ],
+      "skipped": []
+    },
+    "original": {
+      "sha": "a9b5de71b3ecbe2c718313501177fc475c0070a1",
+      "archive_sha256": "f438f342665f973fa8e3629e6ec5f75037199494b15c25468841d935ee097efa",
+      "exit_code": 0,
+      "coverage_ok": true,
+      "seconds": 13.54,
+      "tests": {
+        "ruclaw/internal/agent::TestQualityFinalSelectionAfterTool/allow": "pass",
+        "ruclaw/internal/agent::TestQualityFinalSelectionAfterTool/deny": "pass",
+        "ruclaw/internal/agent::TestQualityFinalSelectionAfterTool/intermediate": "pass",
+        "ruclaw/internal/agent::TestQualityFinalSelectionAfterTool": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/direct/16": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/direct/768000": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/direct/1048576": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/fallback/16": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/fallback/768000": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/fallback/1048576": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/sse/16": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/sse/768000": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/sse/1048576": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope": "pass",
+        "ruclaw/internal/credbroker/a2abroker::TestQualityPollingProgressBeforeRelease": "pass"
+      },
+      "diagnostics": [
+        "quality_probe_test.go:29: product TLS fixture origin=https://k3s.local:37693 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:35505 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:37277 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:37597 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:33489 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:45413 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:41773 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:45425 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:39601 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:43161 private_address=192.168.0.111"
+      ],
+      "skipped": []
+    }
+  }
+}

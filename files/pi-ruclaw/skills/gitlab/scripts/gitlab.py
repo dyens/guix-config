@@ -10,9 +10,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
+import os
 import re
+import ssl
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -21,8 +25,12 @@ from typing import Any
 
 BASE_URL = "https://gitlab.croc.ru"
 DEFAULT_PROJECT = "croc_dit/ruclaw"
+SYSTEM_CA_FILES = (Path("/etc/ssl/certs/ca-certificates.crt"), Path("/etc/pki/tls/certs/ca-bundle.crt"))
 MR_URL_RE = re.compile(r"gitlab\.croc\.ru/(?P<project>.+?)/-/merge_requests/(?P<iid>\d+)")
 NOTE_RE = re.compile(r"#note_(?P<note_id>\d+)")
+CI_PENDING = {"created", "pending", "preparing", "running", "scheduled", "canceling",
+              "waiting_for_resource", "waiting_for_callback"}
+CI_STOPPED = {"success", "failed", "canceled", "skipped", "manual"}
 
 
 def run_git(args: list[str]) -> str | None:
@@ -117,7 +125,19 @@ def project_id(project: str) -> str:
     return urllib.parse.quote(project, safe="")
 
 
-def request(path: str, *, method: str = "GET", body: dict[str, Any] | None = None) -> Any:
+def tls_context() -> ssl.SSLContext:
+    context = ssl.create_default_context()
+    # Guix Python may miss the host trust store, including corporate CAs.
+    if not any(key in os.environ for key in ("SSL_CERT_FILE", "SSL_CERT_DIR")):
+        for bundle in SYSTEM_CA_FILES:
+            if bundle.is_file():
+                context.load_verify_locations(cafile=str(bundle))
+                break
+    return context
+
+
+def request(path: str, *, method: str = "GET", body: dict[str, Any] | None = None,
+            timeout: float = 30) -> Any:
     data = None if body is None else json.dumps(body).encode("utf-8")
     req = urllib.request.Request(
         f"{BASE_URL}/api/v4{path}",
@@ -126,14 +146,74 @@ def request(path: str, *, method: str = "GET", body: dict[str, Any] | None = Non
         headers={"PRIVATE-TOKEN": load_token(), "Accept": "application/json", "Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 - internal GitLab URL
+        with urllib.request.urlopen(req, timeout=timeout, context=tls_context()) as resp:  # noqa: S310 - internal GitLab URL
             raw = resp.read().decode("utf-8")
             return json.loads(raw) if raw else None
     except urllib.error.HTTPError as exc:
         details = exc.read().decode("utf-8", errors="replace")
         raise SystemExit(f"GitLab HTTP {exc.code} for {path}: {details}") from exc
-    except urllib.error.URLError as exc:
+    except (urllib.error.URLError, TimeoutError) as exc:
         raise SystemExit(f"GitLab request failed for {path}: {exc}") from exc
+
+
+def positive_seconds(value: str) -> float:
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise argparse.ArgumentTypeError("Expected a finite number of seconds greater than zero")
+    return seconds
+
+
+def parse_ci_target(value: str, kind: str, default_project: str) -> tuple[str, int]:
+    if value.isascii() and value.isdigit() and int(value) > 0:
+        return default_project, int(value)
+    url = urllib.parse.urlsplit(value)
+    match = re.fullmatch(r"/(.+)/-/" + kind + r"s/([0-9]+)/?", url.path)
+    if (url.scheme == "https" and url.netloc == urllib.parse.urlsplit(BASE_URL).netloc
+            and match and int(match[2]) > 0):
+        return urllib.parse.unquote(match[1]), int(match[2])
+    raise SystemExit(f"Expected a {BASE_URL} {kind} URL or positive numeric ID: {value}")
+
+
+def wait_ci(value: str, kind: str, default_project: str, interval: float, timeout: float) -> int:
+    project, target_id = parse_ci_target(value, kind, default_project)
+    path = f"/projects/{project_id(project)}/{kind}s/{target_id}"
+    started = time.monotonic()
+    deadline = started + timeout
+    previous = None
+    print(f"Waiting for {kind} {target_id} in {project} (timeout {timeout:g}s)", flush=True)
+
+    def timed_out() -> int:
+        print(f"Timed out waiting for {kind} {target_id}; last status: {previous or 'unknown'}. "
+              "Remote state was not changed.", file=sys.stderr, flush=True)
+        return 124
+
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return timed_out()
+        try:
+            result = request(path, timeout=min(30, remaining))
+        except SystemExit:
+            if time.monotonic() >= deadline:
+                return timed_out()
+            raise
+        if time.monotonic() >= deadline:
+            return timed_out()
+        status = result.get("status") if isinstance(result, dict) else None
+        if not isinstance(status, str) or status not in CI_PENDING | CI_STOPPED:
+            print(f"Unexpected {kind} status: {status!r}; stopped waiting.", file=sys.stderr)
+            return 1
+        if status != previous:
+            print(f"[{time.monotonic() - started:.0f}s] {status}", flush=True)
+            if previous is None:
+                url = result.get("web_url") or f"{BASE_URL}/{project}/-/{kind}s/{target_id}"
+                print(f"URL: {url}", flush=True)
+            previous = status
+        if status in CI_STOPPED:
+            if status == "manual":
+                print("Manual action required; nothing was triggered.", flush=True)
+            return 0 if status == "success" else 1
+        time.sleep(min(interval, max(0, deadline - time.monotonic())))
 
 
 def fetch_mr(iid: int) -> None:
@@ -224,7 +304,7 @@ def print_ci(value: str, default_project: str, failed_only: bool, trace: bool, t
                 headers={"PRIVATE-TOKEN": load_token(), "Accept": "text/plain"},
             )
             try:
-                with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 - internal GitLab URL
+                with urllib.request.urlopen(req, timeout=30, context=tls_context()) as resp:  # noqa: S310 - internal GitLab URL
                     raw = resp.read().decode("utf-8", errors="replace")
             except urllib.error.HTTPError as exc:
                 raw = f"<failed to fetch trace: HTTP {exc.code}>"
@@ -350,6 +430,13 @@ def main() -> None:
     ci.add_argument("--trace", action="store_true", help="Fetch tail of failed job traces")
     ci.add_argument("--trace-limit", type=int, default=12000, help="Characters of each failed trace tail to print (default: 12000)")
 
+    for kind in ("job", "pipeline"):
+        wait = sub.add_parser(f"wait-{kind}", help=f"Poll one exact {kind} until it stops or needs manual action")
+        wait.add_argument("target", help=f"{kind.capitalize()} ID (not IID) or full GitLab URL")
+        wait.add_argument("--project", default=DEFAULT_PROJECT, help="Project path for numeric ID input")
+        wait.add_argument("--interval", type=positive_seconds, default=30, help="Poll interval in seconds (default: 30)")
+        wait.add_argument("--timeout", type=positive_seconds, default=3600, help="Overall wait timeout in seconds (default: 3600)")
+
     args = parser.parse_args()
     if args.command == "mr":
         print_mr(args.mr, max(args.comments, 0), args.fetch, args.project)
@@ -359,6 +446,13 @@ def main() -> None:
         print_mr_note(args.url, args.project)
     elif args.command == "ci":
         print_ci(args.mr, args.project, failed_only=not args.all, trace=args.trace, trace_limit=max(args.trace_limit, 1000))
+    elif args.command in {"wait-job", "wait-pipeline"}:
+        try:
+            code = wait_ci(args.target, args.command.removeprefix("wait-"), args.project, args.interval, args.timeout)
+        except KeyboardInterrupt:
+            print("Interrupted; remote state was not changed.", file=sys.stderr)
+            code = 130
+        raise SystemExit(code)
 
 
 if __name__ == "__main__":

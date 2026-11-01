@@ -179,10 +179,14 @@
                 (user "dyens")
                 (port 10022)
                 (identity-file "~/.ssh/guix"))
-
+               (openssh-host
+                (name "ruclaw-vm")
+                (host-name "172.31.16.25")
+                (user "ec2-user")
+                (identity-file (identity-file-for "ruclaw-test-deploy")))
                ;; Дополнительный host, которого не было в backup-конфиге.
                (openssh-host
-                (name "vm-gpu")
+                (name "ruclaw-vm-gpu")
                 (host-name "172.31.16.27")
                 (user "ec2-user")
                 (identity-file (identity-file-for "ruclaw-test-deploy"))

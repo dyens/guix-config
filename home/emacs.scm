@@ -64,6 +64,10 @@
          "emacs-yaml-mode"
          "emacs-markdown-mode"
 
+         ;; Common Lisp (dy-common-lisp.el)
+         "emacs-sly"
+         "sbcl"                        ; реализация Lisp для SLY
+
          ;; Guile и Guix (dy-scheme.el)
          "emacs-geiser-guile"
          "emacs-macrostep-geiser"

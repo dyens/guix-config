@@ -17,7 +17,12 @@
   (defun dy-kkp--distinguish-c-i (result)
     (if (equal result "\t") [C-i] result))
   (advice-add 'kkp--translate-terminal-input :filter-return #'dy-kkp--distinguish-c-i)
-  (global-kkp-mode 1))
+  ;; В tmux поверх Alacritty kitty keyboard protocol может включиться в
+  ;; наружном терминале, но tmux/Emacs начинают спорить за ESC-последовательности:
+  ;; одиночный ESC в evil перестаёт надёжно выходить из insert. В tmux
+  ;; полагаемся на modifyOtherKeys/extkeys, настроенные в tmux.conf.
+  (unless (string-match-p "\\`\\(tmux\\|screen\\)" (or (getenv "TERM") ""))
+    (global-kkp-mode 1)))
 
 ;; Буфер обмена через OSC 52 — встроенными средствами, без clipetty
 ;; (его нет в Guix). Каждый kill уходит терминалу escape-последовательностью,

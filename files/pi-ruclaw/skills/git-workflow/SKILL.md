@@ -7,7 +7,12 @@ description: Use when creating a branch, writing a commit message, opening a mer
 
 ## Overview
 
-RuClaw uses a lightweight branch model, not trunk-based or classic GitFlow: short-lived `type/*` branches -> `develop` (Dev/QA) -> `main` (Demo) -> client release tags (on-prem). Full rationale and edge cases: `docs_flow/pravila-raboty-s-git.md`.
+RuClaw uses short-lived `type/*` branches -> `develop` (Dev/QA) -> `main`
+(Demo) -> client release tags (on-prem). Before mutations, read the relevant Git
+conventions in `docs_flow/pravila-raboty-s-git.md`; before commits/MRs also read
+`docs_flow/changelog.md`. These links govern those topics, not architecture,
+configuration or secret storage. Resolve material conflicts with current checks
+and user instructions; do not import stale CLAUDE/config guidance from them.
 
 ## Quick reference
 
@@ -26,6 +31,24 @@ RuClaw uses a lightweight branch model, not trunk-based or classic GitFlow: shor
 - **Promotion `develop` -> `main`:** whole `develop` at once via merge commit (no squash), only after a tech-lead-announced freeze + full QA pass on Dev — never a partial/selective promotion
 - **Sync with `develop`:** rebase your branch (`git fetch && git rebase origin/develop`), unless the branch is shared with others (then merge instead)
 - **Force-push:** only your own branch, only after a rebase — never `develop`/`main`
+
+## Changelog and authority
+
+- One MR has one release-note decision in its first commit with a non-empty body:
+  `Changelog` + `ChangelogMessage`, or an allowed `ChangelogExcluded` reason.
+  Do not repeat trailers in every fix commit; use the document's path/category rules.
+- Validate with `scripts/ci/check-commit-message.sh` and `check-changelog.sh`;
+  inspect the latter's base/head inputs for the intended MR range.
+- Never add agent co-author trailers. When the user requests implementation in this
+  profile, implement's standing USER permission covers ordinary LOCAL commits of
+  task-owned changes on the agreed task branch; do not request it again for each
+  candidate/fix. Explicit task restrictions override this default. Inspect index/diff
+  and stage only owned paths/hunks. This default does not cover amend/history rewriting,
+  commits to develop/main/release or Git writes by report-only reviewer/ops roles.
+- Push/MR publication, branch switching, merge/rebase/force-push require a separate
+  applicable user mandate; a convention describing an operation is not permission
+  to perform it. Review/advisory requests do not activate implement defaults.
+  `implement`'s publication gate never permits force-push.
 
 ## When something's non-routine
 

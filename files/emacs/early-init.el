@@ -36,6 +36,20 @@
 ;; они уже в `load-path', а их autoloads подгружает сам Emacs из Guix.
 (setq package-enable-at-startup nil)
 
+;; Emacs 31 предупреждает о cookie в autoloads SLY, сгенерированных Guix.
+;; Фильтр нужен до загрузки autoloads (раньше init.el); остальные
+;; предупреждения, включая другие файлы SLY, не подавляем.
+(defun dy-ignore-sly-autoloads-cookie-warning (original type &rest args)
+  "Пропустить только missing-lexbind-cookie для Guix sly-autoloads.el."
+  (unless (and (consp type)
+               (eq (nth 0 type) 'files)
+               (eq (nth 1 type) 'missing-lexbind-cookie)
+               (stringp (nth 2 type))
+               (string-prefix-p "/gnu/store/" (nth 2 type))
+               (equal (file-name-nondirectory (nth 2 type)) "sly-autoloads.el"))
+    (apply original type args)))
+(advice-add 'display-warning :around #'dy-ignore-sly-autoloads-cookie-warning)
+
 ;;; Быстрый старт.
 (defvar dy--file-name-handler-alist file-name-handler-alist)
 (setq file-name-handler-alist nil

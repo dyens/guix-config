@@ -1,0 +1,68 @@
+{
+  "go": "go version go1.27.1 linux/amd64",
+  "command": [
+    "/usr/local/go/bin/go",
+    "test",
+    "-tags=goolm",
+    "-mod=readonly",
+    "-p=2",
+    "-count=1",
+    "-json",
+    "-timeout=30s",
+    "-run=^TestQuality",
+    "./internal/agent",
+    "./internal/credbroker/a2abroker",
+    "./internal/credbroker/server"
+  ],
+  "network": "GOPROXY off; owned ephemeral HTTP loopback and TLS private-interface fixtures; hostname resolution; not an OS sandbox",
+  "runner_sha256": "86c10d47efed7e159b2da97a415046f9c2dd63bed54057cbf9cde3f828663555",
+  "shared_go_caches": true,
+  "probes": {
+    "selection_test.go": "1fffe7d5c08b0084ef65863d004bef553f53fd7a32f73f0194c723d6f43f8f14",
+    "polling_test.go": "ebbc1bf64204d115cae4ba864336fbcc413541c39896dcf46196b67dbd61d152",
+    "envelope_test.go": "682c170a602afa96414d377ff02081148906d9aee805199d1566e8cfbc6ceebd"
+  },
+  "candidates": {
+    "lite-v2": {
+      "sha": "d5189d42b8f39adc4e7d0f33520cb25695e6c2bd",
+      "archive_sha256": "cdcda8f6b6076dc771de321a1bcace4d1a0e5aa240ff6daf9aeb6c35a446d614",
+      "exit_code": 1,
+      "coverage_ok": true,
+      "seconds": 12.99,
+      "tests": {
+        "ruclaw/internal/agent::TestQualityFinalSelectionAfterTool/allow": "pass",
+        "ruclaw/internal/agent::TestQualityFinalSelectionAfterTool/deny": "fail",
+        "ruclaw/internal/agent::TestQualityFinalSelectionAfterTool/intermediate": "pass",
+        "ruclaw/internal/agent::TestQualityFinalSelectionAfterTool": "fail",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/direct/16": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/direct/768000": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/direct/1048576": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/fallback/16": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/fallback/768000": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/fallback/1048576": "fail",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/sse/16": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/sse/768000": "pass",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope/sse/1048576": "fail",
+        "ruclaw/internal/credbroker/server::TestQualityContextlessHTTPEnvelope": "fail",
+        "ruclaw/internal/credbroker/a2abroker::TestQualityPollingProgressBeforeRelease": "fail"
+      },
+      "diagnostics": [
+        "quality_probe_test.go:29: product TLS fixture origin=https://k3s.local:38593 private_address=192.168.0.111",
+        "quality_probe_test.go:64: deny kept forbidden/unselected final attachment IDs: [3caead19-b29e-463a-8316-fa8ca59ee7b4]",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:36045 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:42453 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:37917 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:44927 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:46691 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:39617 private_address=192.168.0.111",
+        "quality_probe_test.go:75: lost whole Message instead of bounded file result: kind= code= err=a2a: outcome_unknown",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:35639 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:45201 private_address=192.168.0.111",
+        "quality_probe_test.go:31: product TLS fixture origin=https://k3s.local:42189 private_address=192.168.0.111",
+        "quality_probe_test.go:75: lost whole Message instead of bounded file result: kind=error code=outcome_unknown err=<nil>",
+        "quality_probe_test.go:103: first working snapshot withheld while second physical poll is blocked"
+      ],
+      "skipped": []
+    }
+  }
+}

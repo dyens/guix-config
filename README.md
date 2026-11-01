@@ -132,8 +132,11 @@ startx
 | `home/docker.scm` | плагины `docker compose`/`buildx` в `~/.docker/cli-plugins` (входит в base) | — |
 | `home/ssh.scm` | `~/.ssh/config`, ключ GitLab из sops (входит в base) | — |
 | `home/claude.scm` | Claude Code: `settings.json`, скиллы, хук уведомлений (входит в base) | — |
-| `home/pi.scm` | Pi packages/extensions: `npm:pi-subagents`, `npm:pi-web-access`, ruclaw skills (входит в base) | `pi update --extensions` |
+| `home/pi.scm` | Pi packages/extensions: `npm:pi-subagents`, `npm:pi-web-access`, `npm:pi-mcp-adapter`, `npm:@juicesharp/rpiv-ask-user-question@2.15.0`, Context7, ruclaw skills (входит в base) | `pi update --extensions` |
 | `files/pi-ruclaw/skills/` | свои Pi skills для ruclaw, раскладываются в `~/.config/pi-ruclaw/skills` | `homerec` |
+| `files/pi-ruclaw/` | [конфигурация RuClaw](files/pi-ruclaw/README.md): default implement на plan-cycle v2, финальный review; legacy recovery явно через `--legacy-cycles` | `homerec`; alias `pi-ruclaw` |
+| `files/pi-extensions/plan-cycle/` | [plan-cycle v2](files/pi-extensions/plan-cycle/README.md): checkpoint + короткий план, стабильный prefix внутри шага; runtime в `~/.config/pi-plan-cycle` | `homerec`; явно подключается `pi-ruclaw`, обычный Pi не меняется |
+| `files/pi-ruclaw/runner/` | [runner без LLM](files/pi-ruclaw/runner/README.md): последовательный implement в новых tmux-pane, Pi остаются открытыми | `pi-ruclaw-runner` после `homerec` или запуск Python из tmux |
 | `home/kube.scm` | kubeconfig'и кластеров из sops в `~/k8s` (входит в base) | — |
 | `files/secrets/kube.yaml` | kubeconfig'и, по ключу на кластер, зашифрованы sops | `sops files/secrets/kube.yaml` |
 | `files/claude/settings.json` | настройки Claude Code: attribution, worktree, hooks, тема, плагины | — |
@@ -269,14 +272,106 @@ guix home build -L . home/programming.scm
 guix build -L . pi-coding-agent
 ```
 
-Нужные расширения Pi задаёт `home/pi.scm`: `npm:pi-subagents` и
-`npm:pi-web-access`. При активации home они устанавливаются через
+Нужные расширения Pi задаёт `home/pi.scm`: `npm:pi-subagents`,
+`npm:pi-web-access`, `npm:pi-mcp-adapter` и закреплённый
+`npm:@juicesharp/rpiv-ask-user-question@2.15.0`. Вопросник вызывается моделью через
+`ask_user_question`, без отдельного LLM-разбора ответа; старый локальный `/answer`
+удалён. После `homerec` начни новую сессию Pi. Подробности и smoke-проверка —
+[вопросник](files/pi-extensions/README.md#вопросы-пользователю-ask_user_question).
+Устаревший `npm:pi-intercom`
+и самостоятельный `npm:pi-lsp` удаляются при активации home: LSP теперь
+загружается только через локальный адаптер с явной проверкой. Нужные пакеты устанавливаются через
 `pi install`, если ещё не прописаны в `~/.pi/agent/settings.json`. Если
 активация была без сети или npm-пакеты надо освежить:
 
 ```sh
 pi update --extensions
 ```
+
+`files/pi-mcp.json` раскладывается в `~/.config/mcp/mcp.json`: глобальный
+MCP-конфиг с удалённым Context7 (`https://mcp.context7.com/mcp`). Локальный
+сервер и API-ключ не нужны для базового доступа; действуют публичные лимиты.
+После `homerec` перезапустите Pi и проверьте `/mcp-adapter tools`.
+Конфиг под Guix read-only: править нужно исходный файл в репозитории,
+а не через `/mcp-adapter edit`. Ключи в этот файл не добавляйте.
+
+### LSP в Pi
+
+Локальное расширение `files/pi-extensions/lsp-manual/` использует `pi-lsp`
+**0.1.7 как зависимость**, не как отдельно загружаемое расширение.
+Навигация остаётся доступной: `lsp_hover`, `lsp_definition`, `lsp_references`
+и `lsp_symbols`. После `write`/`edit` **нет автоматических проверок и сообщений**.
+Серверы запускаются по необходимости и завершаются при закрытии сессии Pi.
+
+LSP нужен прежде всего для исследования кода: `definition` находит определение,
+`references` — семантические использования, `hover` — тип/документацию, `symbols` —
+структуру файла. Используй их, когда это полезнее текстового поиска; конфиги,
+reflection, generated-код и внешние потребители могут требовать отдельного поиска.
+
+Свежая диагностика запрашивается **по необходимости**, когда нужна быстрая обратная
+связь при редактировании или расследовании расхождения, а не ради обязательной
+галочки. После успешного build/typecheck на тех же значимых входах и конфигурации
+повторный LSP-check без дополнительной пользы не нужен. Если он полезен, сначала
+заверши связанную серию правок и проверь нужные сохранённые файлы:
+
+```text
+lsp_check({ paths: ["src/a.py", "src/b.py"] })
+```
+
+Это не заменяет обязательные проверки проекта, тесты поведения, race/integration,
+security lint и независимый review. Известно недоступный сервер не надо вызывать
+повторно до изменения окружения; отсутствие диагностики не означает успех.
+
+Адаптер сначала синхронизирует все перечисленные сохранённые файлы, затем
+обновляет диагностику, ждёт настроенный для сервера интервал и возвращает
+результаты одним ответом инструмента. Файлы он не изменяет; отдельные steer-
+сообщения не создаёт. Проверка выполняется последовательно, не параллельно
+с другими инструментами; если файлы изменились во время проверки, результаты
+отбрасываются с просьбой повторить её после завершения правок.
+Лимиты: 1–20 путей, 2 MiB на файл, вывод до 32 тысяч символов.
+
+`lsp_diagnostics` остаётся чтением кэша с явным предупреждением о возможной
+устарелости — для свежей проверки нужен `lsp_check`. Ни пустой кэш, ни отсутствие
+результатов у ненастроенного/недоступного сервера не означают, что код корректен.
+Это инструменты агента, не slash-команды: команды `/lsp` нет.
+
+`files/pi-lsp.json` устанавливается в `~/.pi/agent/lsp.json` через Guix Home.
+Настроены Python (`pyright-langserver`), Go (`gopls`), Rust (`rust-analyzer`),
+C/C++ (`clangd`) и TypeScript/JavaScript (`typescript-language-server`).
+Как у Eglot, бинарники берутся из `PATH` окружения проекта, а не ставятся
+глобально этим конфигом. Запускайте Pi после активации venv/direnv/`guix shell`.
+Для TypeScript нужны и `typescript-language-server`, и `typescript` в окружении.
+Для C/C++ желательно иметь `compile_commands.json`. У Pyright явно задано
+`settings: {}`: так расширение отправляет начальное уведомление о конфигурации,
+без которого проверенная версия Pyright 1.1.408 зависает на hover.
+
+После `homerec` выполнить `/reload` в Pi. Home устанавливает файлы адаптера
+по отдельности в `~/.pi/agent/extensions/lsp-manual/`, оставляя каталог
+`node_modules` доступным для записи. Его зависимости устанавливаются без
+npm lifecycle scripts и host-provided peer-пакетов. При смене версии
+в `package.json` активация обновит зависимость. Если установка была без сети:
+
+```sh
+npm install --prefix ~/.pi/agent/extensions/lsp-manual \
+  --omit=dev --omit=peer --ignore-scripts --package-lock=false
+```
+
+Не подключайте `npm:pi-lsp` отдельно: иначе вернётся автоматический hook
+и появятся дубли инструментов. Для обновления библиотеки меняйте пин
+в `files/pi-extensions/lsp-manual/package.json` и проверяйте адаптер;
+он рассчитан на контракт регистрации версии 0.1.7.
+
+Глобальный JSON под Guix read-only: править нужно `files/pi-lsp.json`.
+Для настроек конкретного проекта создайте `.pi/lsp.json`: записи заменяют
+глобальные по `id`; `{"id": "pyright", "enabled": false}` отключает сервер.
+Проектный конфиг может запускать программы, поэтому расширение запрашивает
+доверие к его содержимому; в неинтерактивном режиме он отклоняется по умолчанию.
+
+Pi использует свои LSP-процессы, отдельно от Eglot в Emacs, и читает файлы
+с диска — несохранённые буферы Emacs через эту интеграцию не синхронизируются.
+Диагностика не заменяет тесты, а её отсутствие сразу после запуска сервера
+не гарантирует, что сервер уже закончил анализ. Для Scheme/Guile сервер
+в этой первой конфигурации не задан.
 
 ---
 
@@ -993,6 +1088,23 @@ Guix из `guix pull` (с каналами, например sops-guix) и уж�
 самого Guix (`guix-package`, `guix-origin`, сообщения коммитов) берутся
 из git-кэша каналов `~/.cache/guix/checkouts/*/etc/snippets/yas`.
 
+### Common Lisp (`dy-common-lisp.el`)
+
+SLY и SBCL ставятся через Guix. Открой `.lisp` и запусти `M-x sly`
+(или `SPC m r`) — откроется REPL SBCL.
+
+| Клавиши | Что |
+|---|---|
+| `SPC m r` | запустить SLY / SBCL |
+| `SPC m d` / `SPC m b` / `SPC m l` | eval определения / буфера / выражения перед курсором |
+| `SPC m c` | скомпилировать определение |
+| `SPC m e` | раскрыть макрос на один шаг |
+| `M-.` / `M-,` | к определению и обратно |
+| `C-c C-z` | перейти в REPL |
+
+Дополнение — через Corfu; структурное редактирование — lispyville,
+подсветка скобок — rainbow-delimiters, как в Scheme.
+
 ### Добавить пакет
 
 1. Строка в `%emacs-packages` (`home/emacs.scm`); имя —
@@ -1559,8 +1671,19 @@ docker run --rm busybox nslookup docker-registry.k2int-ruclaw.loc  # и из к�
 | helper `dyvpn-iptables` / aliases `dyvpn-timeweb`, `dyvpn-fornex` | `home/dyvpn.scm`, запускается вручную | ключи `xray.json`, `xray-fornex.json` в `files/secrets/xray.yaml` |
 | домены/IP для proxy-ветки | `files/xray-domains.txt` → `~/.config/dyvpn/domains.txt` | нет |
 
-Через VPN идут только домены/IP из `files/xray-domains.txt`; остальное Xray
-отправляет напрямую. Xray outbound sockets помечаются `sockopt.mark = 255`, а
+В прозрачном режиме через VPN идут только домены/IP из
+`files/xray-domains.txt`; остальное Xray отправляет напрямую.
+Дополнительно доступен SOCKS5 на `127.0.0.1:1080` без авторизации, только
+для локальных TCP-подключений: **все запросы через него идут через VPN**,
+независимо от списка доменов. Он работает, пока запущен `dyvpn-timeweb`
+или `dyvpn-fornex`:
+
+```sh
+curl -v --socks5-hostname 127.0.0.1:1080 https://ya.ru
+```
+
+Порт `12345` — только для iptables REDIRECT, не SOCKS5.
+Xray outbound sockets помечаются `sockopt.mark = 255`, а
 iptables не перехватывает уже помеченные соединения — так избегаем петли.
 
 Переключение сервера вручную:

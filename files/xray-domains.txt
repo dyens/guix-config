@@ -19,3 +19,9 @@ youtube.com
 googlevideo.com
 i.ytimg.com
 yt3.ggpht.com
+
+# context7
+context7.com
+
+e2b.dev
+archil.com
