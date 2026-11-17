@@ -1,226 +1,130 @@
-# Plan cycle v2: checkpoint 0 + план на границе шага
+# Structured tasks + bounded step context
 
-Opt-in расширение для Pi 0.87.1. Не меняет обычный implement/lite, конфигурацию Pi,
-Git или продуктовые файлы. Новых зависимостей нет: используется API установленного Pi.
-
-## Запуск
-
-Без `homerec`, из каталога нужного проекта:
+Opt-in extension for Pi 0.87.1; default in pi-ruclaw. No new dependencies, Git
+writes, background model calls or product edits by the extension.
 
 ```sh
 pi --extension ~/vms/guix-config/files/pi-extensions/plan-cycle/index.ts
+# resume with the same extension; Guix installs ~/.config/pi-plan-cycle/
 ```
 
-При продолжении сессии подключай то же расширение:
+## Agent workflow
 
-```sh
-pi --resume --extension ~/vms/guix-config/files/pi-extensions/plan-cycle/index.ts
+After reading the original task, criteria, authority and relevant inputs, before
+product edits, call ALONE:
+
+```json
+{"plan_path":".scratch/my-task/plan.md","context":"Immutable original base/branch, scope, permissions and required gates","steps":[{"title":"Implement behavior"},{"title":"Test behavior","needs":[1]},{"title":"Independent review and agreed delivery"}]}
 ```
 
-Расширение не является глобальным autoload обычного Pi. Guix Home устанавливает
-его в `~/.config/pi-plan-cycle/`, а `pi-ruclaw` явно загружает v2 по умолчанию.
-`/skill:implement` сам вызывает `plan_cycle_start` после intake, до планирования:
-ручные команды ниже нужны только для прямого управления или обычного Pi.
-Не совмещай с `ruclaw_next_cycle` или другим расширением, переписывающим context.
+Tool: **task_plan**. It saves checkpoint 0 (excluding its pending call), persists
+structured tasks, activates the first step and exports a human-readable Markdown
+plan. No manual start/next/INPROGRESS edits. IDs start at 1; optional instruction
+adds bounded step-specific detail, needs names earlier steps whose results are inputs.
 
-## Один проход
+Execute a coherent increment, finish tools/children, then call **task_complete**
+ALONE with id, short result, optional checks, handoff and notes. This saves the
+result, marks the step done, activates the next and creates a clean context boundary
+in one operation. Even the final step gets a boundary; repeated completion is rejected.
+No report file is required. Git HEAD/dirty metadata is observed automatically where
+available; it is not an owned-path inventory, test result or proof of acceptance.
 
-1. Передай исходную задачу, требования и ограничения. Если не хочешь немедленной
-   реализации, напиши это прямо. Дождись окончания ответа.
-2. До создания плана выполни:
+- **task_get(id)** reads ONE archived step when needed, not routinely at startup.
+- **task_block(id, reason)** saves partial work/blocker without resetting context.
+- **task_replan(reason, steps, notes?)** revises ALL remaining steps in the same
+  context. Existing unfinished IDs are stable; omitted unfinished steps are cancelled
+  with a reason; new steps get fresh IDs. Completed/cancelled history is immutable.
+  Reordering respects earlier-step dependencies. It can add review fixes after all
+  steps finish. User scope/permissions/gates are not changed by a technical replan.
+- notes REPLACES bounded living decisions/open findings/gates/resources. Preserve
+  unresolved items, discard obsolete detail; do not append a diary.
 
-   ```text
-   /plan-cycle start .scratch/my-task/plan.md
-   ```
+Results/checks/handoff have bounded schemas (1000/1200/1500 characters); notes 4000,
+contract 6000, at most 1000 archived steps. Long logs/substantial findings may use
+linked files; ordinary successful steps do not create report packages. Required
+checks and independent final review are still agent responsibilities.
 
-   Текущая позиция активной ветки становится checkpoint 0. Файл плана пока может
-   отсутствовать. Команда ничего не запускает и не пишет в Git.
-3. Попроси: «Создай короткий план в указанном файле. Пока не начинай реализацию».
-   Обсуди/поправь план при необходимости.
-4. Для начала исполнения:
-
-   ```text
-   /plan-cycle next
-   ```
-
-   Команда отбрасывает переписку планирования из **model context**, добавляет
-   актуальный план и запускает ответ модели. Файлы, Git и transcript не откатываются.
-5. Агент берёт первый TODO, перед INPROGRESS перечитывает нужные изменившиеся
-   файлы, выполняет шаг и сохраняет короткий итог/пути в плане. Подробности при
-   необходимости — в отдельных файлах с результатами. Commit — только с разрешения.
-6. После DONE и завершения инструментов/children агент вызывает
-   `plan_cycle_next({})` **отдельным tool call**, без соседних вызовов. Следующий
-   запрос содержит checkpoint 0, актуальный план, сохранённые указания/ответы
-   пользователя и только текущий новый шаг.
-   Это позволяет выполнять несколько шагов без ручного `/tree`.
-7. Если все шаги DONE, новый цикл не создаётся. Агент сообщает итог. Для нового
-   плана по результатам review добавляются TODO; переход снова доступен.
-
-## Формат плана
-
-Обычный Markdown, задачи отдельными строками `- STATUS Описание` или
-`1. STATUS Описание`. Статусы — только TODO, INPROGRESS, DONE, BLOCKED.
-Примеры внутри fenced code blocks не считаются задачами.
-
-```markdown
-# Цель
-Останавливать poller после удаления tenant.
-
-# Важные решения
-- Stop идемпотентен; Delete ждёт завершения poller.
-- До шага 3 код может не собираться.
-
-# Шаги
-- DONE Спроектировать lifecycle и создать заглушки.
-  Итог: runtime владеет cancel; created: runtime.go; changed: manager.go.
-- TODO Реализовать остановку poller.
-- TODO Подключить tenant deletion.
-- TODO Написать/запустить тесты, исправить ошибки.
-- TODO Независимый review; по findings составить новый план.
-```
-
-План должен быть коротким, без копий логов и истории расследования. Технический
-предел чтения — 64 KiB, это не целевой размер плана. Старые чтения самого файла
-плана из checkpoint заменяются указателем на блок CURRENT PLAN AT STEP START.
-Этот блок фиксируется на границе шага и не меняется до следующего перехода.
-Последующие `read/edit/write` текущего шага показывают более свежую версию плана;
-они не переписывают его исходный блок. Это сохраняет prefix cache.
-
-DONE означает «шаг выполнен», не VERIFIED и не готовность продукта. Ранние шаги
-могут оставлять неработающий промежуточный код. Обязательный финальный review и
-проверки задаются планом; расширение само не запускает reviewer, тесты или commit.
-
-## BLOCKED и перепланирование
-
-При ошибке плана агент ставит BLOCKED и сохраняет причину/частичный результат.
-`next` **откажет**, пока в плане есть BLOCKED или INPROGRESS: полезный контекст
-расследования не сбрасывается. В том же контексте можно изменить весь технический
-план, учитывая уже сделанное. После разрешения блокера надо обновить статусы
-(например, разбить частично выполненный шаг на DONE и новые TODO).
-
-Требования и полномочия нельзя менять самостоятельно. Новые реальные пользовательские
-сообщения после checkpoint сохраняются между шагами **дословно**, включая запреты
-и отзыв разрешений. Они не заменяются summary модели.
-
-Также сохраняются завершённые пары `ask_user_question` → tool result в исходном
-порядке: полные вопросы/варианты и точные ответы, notes, partial/cancel/error состояния.
-Это не синтетическое user-сообщение и не согласие на рекомендации. Пропущенный вопрос,
-отмена, ошибка UI или заметка без выбора не одобряют невыбранные варианты; позднейшие
-поправки пользователя имеют приоритет. Из assistant-сообщения прошлого шага переносятся
-только вызовы вопросника, без соседних инструментов, текста и thinking. В checkpoint
-сообщения по-прежнему сохраняются целиком. Незавершённая/повреждённая пара на границе
-даёт STOP; контекстные фильтры не могут молча убрать вопросник. Явные canonical
-context_edit учитываются: исключённая целиком пара не восстанавливается из raw history,
-исключение только половины пары приводит к STOP. Состояние v2 не меняется, правила
-действуют и после reopen/reload. Ответы остаются в transcript и model context —
-секреты через вопросник передавать нельзя.
-
-## Что происходит с прочитанными файлами
-
-Расширение отслеживает native tool `read`, включая чтения до включения режима,
-если само расширение уже было загружено. Сохраняются путь и fingerprint
-(realpath + SHA256 содержимого), не копия файла. Fingerprint проверяется до и после
-read; гонка между ними делает результат недостоверным.
-
-Только при `/plan-cycle start` и успешном `next` проверяются чтения,
-сохраняемые из checkpoint 0. Решения сохраняются в snapshot в session custom entry:
-
-- неизменённый read result остаётся;
-- изменённый, удалённый или недоступный файл заменяется `STALE READ` с путём;
-- старые text/image/details результата не передаются модели;
-- tool call и его результат остаются согласованной парой;
-- чтение без сохранённого fingerprint считается устаревшим консервативно;
-- свежий повторный read в текущем шаге даёт актуальное содержимое и не заменяется;
-- изменения/удаления файлов внутри шага НЕ переписывают уже отправленные read results;
-  актуальность определяется последующими edit/write/read results, как в обычном Pi;
-- чтения прошлых шагов вообще исчезают вместе с их перепиской; пути созданных/
-  изменённых/удалённых файлов и важные решения агент должен сохранить в плане.
-
-Внутри шага запросы используют один и тот же сохранённый план/решения об устаревании,
-не читают план и не пересчитывают fingerprints checkpoint. Обновления плана и кода
-только добавляются в хвост переписки. Даже после reload snapshot остаётся прежним;
-изменения на диске будут учтены на следующей границе. Если план отредактирован извне,
-попроси агента прочитать его: автоматической подмены prefix посреди шага нет.
-Удалённый файл плана не ломает текущий запрос, но следующий `next` откажет.
-
-Автоподстановки полного свежего файла нет: агент выбирает необходимые файлы/диапазоны
-и перечитывает их **до TODO -> INPROGRESS**. Последнее — инструкция модели, не
-доказательство и не жёсткий запрет редактирования файла плана до чтения.
-
-**Границы:** bash/grep/search output, цитаты в обычных ответах, содержимое исходного
-user prompt и system context files автоматически не переписываются. Старые
-рассуждения checkpoint могут ссылаться на уже изменённый код. Модель получает
-явное предупреждение проверять такие утверждения по текущим файлам. Нестандартные
-read tools/path aliases могут не отслеживаться. Это не полный filesystem watcher
-и не snapshot/sandbox; внешние изменения сразу после проверки всё ещё возможны.
-
-## Сессия, история и безопасность переходов
-
-Состояние v2, снимок плана, решения об устаревших чтениях и read provenance
-сохраняются как custom entries сессии, привязанные к активной ветке. `/reload` и повторный запуск с тем же расширением восстанавливают
-режим. Переход `/tree` до включения режима его отключает на той ветке; записи
-альтернативных веток не используются. Исторические файлы результатов не удаляются.
-
-Реального tree navigation нет: `context` hook фильтрует canonical session projection.
-Существующие `context_edit` omissions/replacements учитываются, system/tool state
-восстанавливает native Pi runner. Точное соответствие сообщений источникам проверяется.
-
-Legacy v1 не мигрирует незаметно при reload: новый код выдаст STOP. Сохрани handoff,
-выключи режим и согласуй новый checkpoint (лучше новую сессию). Старые запуски,
-использующие собственную frozen копию v1, не изменяются.
-
-Потеря границы/checkpoint, повреждённый snapshot, compaction после
-checkpoint или конфликтующий context transform приводят к явному **STOP**. Старый
-контекст не возвращается молча; инструменты блокируются до восстановления или
-пользовательского `/plan-cycle stop`. Сохранившиеся user messages остаются доступны.
-
-Для точного checkpoint **compaction отменяется, пока режим активен** (включая
-ручную). Это намеренное ограничение первой версии: шаг должен помещаться в окно.
-Если он слишком велик, раздели его в текущем контексте или сохрани handoff и начни
-новую сессию. Расширение не доказывает, что начальный checkpoint сам достаточно мал.
-
-Переход инструментом проверяет одиночный вызов, статус плана и целостность границ.
-Завершить фоновые children обязан parent: общего достоверного реестра внешних jobs
-расширение не имеет. Проверка статуса плана не доказывает фактическое выполнение
-шага или честность summary. Разрешения на Git/push/MR/deployment не добавляются.
-
-## Создание checkpoint моделью
-
-`plan_cycle_start({"plan_path":".scratch/<task>/plan.md"})` — эквивалент ручного
-start для согласованной новой задачи. Вызывается отдельно после чтения задачи и
-нужных inputs, до плана/product edits. Pending tool call и его будущий result не
-попадают в checkpoint: сохраняются только завершённый intake и исходная задача.
-Повторный start активной задачи отклоняется; нужно продолжить её plan, не сбросить базу.
-Сохранённые legacy work-cycles требуют `pi-ruclaw --legacy-cycles --session <id>`;
-default v2 не продолжает их без фильтра и не смешивает engines.
-
-## Управление
+## Human status — no LLM
 
 ```text
-/plan-cycle status
-/plan-cycle next
-/plan-cycle stop
+/task_get_status
+Tasks: 10/300. Plan: /absolute/path/to/plan.md
 ```
 
-`stop` выключает фильтрацию: **следующий запрос снова увидит обычную историю активной
-ветки**, включая старые шаги. Перед новым checkpoint после stop учитывай это; для
-полностью чистого старта лучше новая сессия с нужным handoff. Сам stop не вызывает LLM.
-Команды start/next/stop требуют idle и пустую очередь сообщений.
+A registered user command, NOT an LLM tool. It calls no model and appends no
+conversation or task state. Blocked adds `(blocked)`. Counters exclude cancelled
+steps and do not certify task acceptance. `/plan-cycle stop` disables filtering;
+next request sees ordinary history, so stop/start is not a clean reset.
 
-## Проверки без моделей
+## Storage and generated plan
 
-Из `~/vms/guix-config`:
+Branch-local session custom entries are authoritative, not plan.md. Extension
+exports the complete archive to that file for humans. Editing/deleting it does not
+replan execution. Export uses a queued atomic rename; export failure is reported
+without losing committed session state. The next task update retries export.
+The full generated file is never automatically fed to the model.
+
+Boundary entries store tasks and snapshot together in ONE plan-cycle-state-v2
+entry, with an explicit structured workflow marker. In-step block/replan updates
+use plan-cycle-tasks-v1; native read provenance uses plan-cycle-read-v1.
+Existing Markdown v2 sessions remain supported with their old plan_cycle_start /
+plan_cycle_next and /plan-cycle commands; next refuses structured tasks. No silent
+migration or mixing with legacy work-cycles/v1. Resume work-cycles only with explicit
+pi-ruclaw --legacy-cycles; legacy v1 requires an agreed handoff/new checkpoint.
+
+## Bounded model context
+
+Each boundary carries:
+- original checkpoint 0, invalidating old read contents when changed/untracked;
+- newer user messages verbatim and exact completed ask_user_question pairs;
+- fixed task contract, bounded living notes, current step, next three titles;
+- previous completed result plus explicitly needed dependency results (max 8 needs);
+- up to 8 small verified native text read pairs, total <=24 KiB, from prior steps.
+
+The rest of completed plans/results, tool outputs and reasoning stays in transcript,
+not model context. Thus a 300-step archive is not a 300-result prompt. No task_get_all.
+
+Read fingerprints (realpath + SHA256) are tracked before/after native read, including
+intake. A race, retargeted symlink, missing file or unknown provenance invalidates
+reuse. Carried reads are latest per path/range, text-only, exclude generated plan,
+failed reads, sibling calls and assistant narration. Canonical context edits/omissions
+are respected; raw history is not resurrected. The model reads missing/stale sources
+only when useful; there is no ceremonial reread before each automatic status change.
+
+Snapshot, plan and read decisions stay frozen WITHIN a step, including reload.
+New read/edit/write results extend the tail normally, preserving prefix cache.
+Disk changes are checked again at the next boundary, not on every model request.
+This is not a filesystem snapshot/watch, sandbox or freshness guarantee against
+external edits after checking. Bash/search output and checkpoint reasoning may stale.
+
+Questionnaire call/results remain exact and ordered, including cancellation/error/
+partial/custom answers and notes. Only those calls survive from prior assistant
+messages, not sibling work/thinking. Cancellation, unanswered options or recommendations
+are not permission. Later user corrections override agent-written summaries.
+
+## Recovery and safety
+
+Reload/reopen and tree branching use ONLY active-branch session state. An incomplete
+questionnaire pair, lost checkpoint/boundary, corrupt state, unknown context transform
+or compaction after checkpoint produces explicit STOP and blocks tools, never silent
+restoration of unfiltered old history. Canonical context edits remain authoritative.
+Compaction is cancelled while enabled; split oversized steps or use a fresh-session
+handoff. Checkpoint 0 must itself fit. New standalone tasks use a fresh session,
+not an ever-growing old task scope/base. Settle old writers/children first.
+
+Transitions require an isolated call, stable session and cancellation checks.
+Task state + boundary commit as one session entry before recoverable view export.
+No general trustworthy background-job registry is available: parent must settle all
+children/tools. Extension does not validate claimed test success, gate satisfaction,
+resource ownership or permissions. Task counts/DONE never authorize push/deploy.
+
+## Tests without models
 
 ```sh
-node --import ./files/pi-ruclaw/tests/peers.mjs \
-  --test files/pi-extensions/tests/plan-cycle.test.ts
+node --import ./files/pi-ruclaw/tests/peers.mjs --test \
+  files/pi-extensions/tests/plan-cycle.test.ts files/pi-extensions/tests/tasks.test.ts
 ```
 
-Используются настоящий SessionManager, запись/повторное открытие session JSONL,
-context edits, native loader и ExtensionRunner. Проверяются сохранение исходной
-задачи и новых запретов, удаление старых шагов, live plan, stale reads, symlinks,
-BLOCKED/INPROGRESS, одиночный transition call, fail-closed и сохранение system/tools.
-Регрессии проверяют побайтово неизменный prefix после изменения плана/кода, удаления
-файла и reload внутри шага, свежий read плана и обновление snapshot на следующем шаге.
-Модели, реальные subagents, стенды и remote services тесты не запускают: они не
-доказывают соблюдение протокола моделью или качество реализации продуктовой задачи.
+Real SessionManager/projection, reopen/branch, native loader/runner, legacy support,
+questionnaire preservation, stable prefixes, bounded read carry, atomic completion,
+blocking/replan and human status without model calls. No real reviewer/models/stands.

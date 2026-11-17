@@ -1,7 +1,15 @@
-# Pi для RuClaw — plan-cycle v2 по умолчанию
+# Pi для RuClaw — structured tasks по умолчанию
 
 Личный профиль для `~/dev/croc/ruclaw`. Обычный `pi`, командные файлы проекта,
 credentials и модели не меняются. Новых зависимостей нет.
+
+## Диагностика инцидентов RuClaw
+
+Read-only сбор переписки, traces/spans, checkpoints и Kubernetes-логов в приватный
+локальный пакет: [diagnostics/README.md](diagnostics/README.md).
+Из Pi: `/ruclaw-incident <chat-id> [namespace=ruclaw-demo] [context=current]`.
+Prompt запускает готовый сборщик и читает manifest/summary. Сам сборщик можно
+запустить напрямую, без модели или повторного изучения схемы БД.
 
 ## Запуск
 
@@ -10,7 +18,7 @@ credentials и модели не меняются. Новых зависимос
 ```sh
 pi-ruclaw
 pi-ruclaw --check
-pi-ruclaw --session <v2-session-id>
+pi-ruclaw --session <session-id>
 pi-ruclaw-runner .scratch/RCL-821 --only 08,09   # внутри tmux
 ```
 
@@ -21,14 +29,14 @@ python3 ~/vms/guix-config/files/pi-ruclaw/launch.py --check
 python3 ~/vms/guix-config/files/pi-ruclaw/launch.py
 ```
 
-Для обычного запроса на реализацию workflow v2 выбирается профилем автоматически.
+Для обычного запроса на реализацию structured tasks выбирается профилем автоматически.
 Явный вход в Pi также доступен:
 
 ```text
 /skill:implement .scratch/RCL-XXX/issues/NN-task.md
 ```
 
-Launcher подключает shared `plan-cycle` v2 и native pi-subagents. В исходниках
+Launcher подключает shared `plan-cycle` (structured tasks) и native pi-subagents. В исходниках
 расширение берётся из `files/pi-extensions/plan-cycle/`, после Home activation — из
 `~/.config/pi-plan-cycle/`. Это не глобальный autoload для обычного Pi.
 `--check` показывает workflow и пути, но не вызывает модель и не проверяет продукт.
@@ -37,10 +45,8 @@ Launcher подключает shared `plan-cycle` v2 и native pi-subagents. В 
 
 ```text
 Прочитать задачу/полномочия и нужные исходные файлы
-  → plan_cycle_start: checkpoint 0
-  → короткий plan.md
-  → plan_cycle_next
-  → TODO → INPROGRESS → DONE → следующий шаг
+  → task_plan: checkpoint 0 + структурированные шаги + generated plan.md
+  → текущий шаг → task_complete: короткий итог/checks/handoff + следующий контекст
   → целевые регрессии + дешёвый CI-preflight → разрешённый commit
   → финальный fresh review || тяжёлые проверки того же кандидата
   → findings становятся новым планом исправлений
@@ -59,16 +65,21 @@ Launcher подключает shared `plan-cycle` v2 и native pi-subagents. В 
 shared/prod, global prune, удаление volumes/persistent-данных или privileged/security
 bypass. Для них нужны отдельные полномочия. Reviewer/ops остаются в своих узких ролях.
 
-- План короткий: шаги, ключевые решения, исходный base/branch/scope, краткие итоги,
-  changed/created/deleted пути и ссылки на детали. Статусы только TODO / INPROGRESS /
-  DONE / BLOCKED. DONE шага не означает приёмку всей задачи.
+- Состоянием владеет extension, не модель. task_plan задаёт контракт/шаги,
+  task_complete сохраняет короткий результат и автоматически переключает шаг/контекст.
+  plan.md — генерируемое представление для человека, не редактируемая база данных.
+  Обычному шагу не нужны отдельные отчёты, списки хешей и статусы в чате.
 - Исправления/review/integration той же задачи продолжают её цикл. Новая отдельная
   задача после согласованного endpoint — свежая сессия с handoff и собственным base,
   а не продолжение старого плана через новые ветки. Старый writer должен быть idle,
   children завершены, открытые gates и полномочия сохранены со ссылками на источники.
   `stop/start` не очищает контекст: stop возвращает обычную историю.
-- До INPROGRESS перечитываются нужные изменённые/созданные файлы. Задача уже в
-  checkpoint: её не перечитывают ритуально после каждого перехода.
+- Читаются только отсутствующие/устаревшие нужные inputs. До 8 проверенных чтений
+  (24 KiB) переносятся между шагами, инструкции/Markdown приоритетны. Обязательного
+  перечитывания перед сменой статуса нет. Исходная задача уже в checkpoint.
+- В контексте текущий шаг, три следующих заголовка, живые решения/open gates и
+  предыдущий результат + явные зависимости. Остальной архив доступен через
+  task_get(id), не загружается весь. 300 шагов не превращаются в 300 итогов в prompt.
 - План и инвалидизация чтений checkpoint фиксируются **на границе шага** и
   сохраняются в session entries. Внутри шага prefix не переписывается: новые
   read/edit/write results дополняют хвост, показывая более свежие версии.
@@ -76,14 +87,16 @@ bypass. Для них нужны отдельные полномочия. Review
   Новые пользовательские инструкции сохраняются дословно между шагами; завершённые
   `ask_user_question` сохраняются как исходные пары вызов/результат. Отмена/ошибка или
   пропущенный вопрос не означают согласие, последующие поправки имеют приоритет.
-- BLOCKED/INPROGRESS запрещают next. При ошибке плана агент сохраняет причину и
-  перепланирует в текущем контексте; scope/permissions сам не расширяет.
+- task_block сохраняет блокер без сброса отладки. task_replan меняет оставшиеся
+  шаги в том же контексте, сохраняя историю и стабильные ID. Scope/permissions и
+  обязательные gates модель самовольно не меняет.
 - Промежуточный код может не работать, если это явно записано. Финальный кандидат
   требует необходимых проверок и независимого review. До review — применимые дешёвые
   CI-проверки, включая security lint для Go-тестов и версии инструментов из CI.
   Review и тяжёлые проверки можно выполнять параллельно на неизменяемом кандидате
   при изолированных ресурсах; до исправлений/перехода все запуски завершаются.
-  Детали проверок и их перенос/инвалидизация — в связанном индексе, не в журнале плана.
+  Команды/результаты проверок — в коротких task results; отдельный индекс только
+  для действительно сложной проверки, не обязательная бюрократия.
   Отдельный запуск нового integration-теста на чистом backend проверяет автономность
   fixture. Повторный дефект одного инварианта требует пересмотра контракта, не цепочки
   точечных патчей.
@@ -96,8 +109,10 @@ bypass. Для них нужны отдельные полномочия. Review
   non-force push gate; локальный source-only endpoint не подменяет task done или
   production acceptance. Required skipped/blocked checks остаются незакрытыми.
 
-Ручные команды `/plan-cycle start <path>`, `next`, `status`, `stop` тоже доступны;
-при обычном `/skill:implement` checkpoint создаёт агент через `plan_cycle_start`.
+`/task_get_status` — команда пользователя БЕЗ LLM:
+`Tasks: 10/300. Plan: /absolute/path/to/plan.md`. Это не tool модели и не ритуал
+начала шага. Счётчики не доказывают приёмку. Старые `/plan-cycle` и plan_cycle_*
+оставлены для существующих Markdown v2 сессий; в structured tasks next запрещён.
 Compaction в активном режиме отменяется: слишком большой шаг надо разделить или
 сохранить handoff, а не надеяться на пересказ checkpoint. Старые цитаты/bash/search
 output автоматически не обновляются. Это не sandbox и не доказательство честности
@@ -115,13 +130,14 @@ output автоматически не обновляются. Это не sandb
   репозитория, `areas.md`/`testing.md` нельзя искать в его корне. `read` не раскрывает
   переменные окружения. Описания не объявляют старую документацию безусловной истиной.
 - `skills/implement/SKILL.md` — default workflow;
-  `references/plan-cycle.md` — safeguards; `result-contract.md` — short/detail reports.
+  `references/plan-cycle.md` — safeguards; `result-contract.md` — компактные child results.
 - `agents/plan-reviewer.md` — default reviewer. `ruclaw-reviewer` сохранён для
   отдельного code-review skill/legacy; это не обязательный второй pass default.
 - `PI_RUCLAW_ROOT`, `PI_RUCLAW_GLOBALS`, `PI_SUBAGENT_EXTRA_AGENT_DIRS` передают
   пути профиля/личных инструкций/ролей; не печатай весь env.
-- Детали/логи — в отдельных результатах. Отчёт child неизменяемый, parent dispositions
-  отдельно; `output:false/outputMode:inline`, никаких single-file receipt overrides.
+- Reviewer/ops по умолчанию пишут один краткий result.md со всеми findings/limits;
+  отдельные детали/логи только по необходимости. Child evidence неизменяемо, краткие
+  dispositions/open IDs — в task notes; `output:false/outputMode:inline`.
 
 ## Ретроспектива процесса: `/skill:retro`
 
@@ -163,21 +179,22 @@ pi-ruclaw --legacy-cycles --check
 ```
 
 В этом режиме используется старое extension и `implement/references/resume.md`,
-а не новый implement onboarding. Default v2 обнаруживает сохранённую legacy boundary
+а не новый implement onboarding. Default extension обнаруживает сохранённую legacy boundary
 и выдаёт STOP вместо молчаливого смешивания процессов. Старые manifests/transcripts
 и frozen runtimes пилотов сохраняются. Для plan-cycle v1 также нет тихой миграции.
 
 Для перехода старой задачи в новую сессию: сначала сделать прежнего писателя idle,
 сохранить handoff (original bases/HEAD/dirty ownership, открытые gates, ресурсы,
-решения/следующий шаг), затем явно восстановить задачу в v2. Не делать reset/stash/
+решения/следующий шаг), затем явно восстановить задачу в structured tasks. Существующие Markdown v2
+сессии продолжаются прежними инструментами, без скрытой миграции. Не делать reset/stash/
 clean и не объявлять done ради переключения. Ctrl-C runner не останавливает Pi.
 
-[Ponytail full](ponytail/README.md) — отдельный opt-in вариант: те же plan-cycle v2
+[Ponytail full](ponytail/README.md) — отдельный opt-in вариант: те же structured tasks
 и полномочия, но upstream Ponytail вместо наших code-design/review инструкций.
 Default и существующие сессии не переключаются.
 
 [Lite](lab/README.md) остаётся отдельным opt-in экспериментом; alias не менялся.
-[Runner](runner/README.md) запускает свежий default v2 Pi на каждую задачу, ждёт
+[Runner](runner/README.md) запускает свежий default Pi на каждую задачу, ждёт
 runner_finish и не является владельцем приёмки.
 
 ## Проверки без моделей
@@ -186,7 +203,7 @@ runner_finish и не является владельцем приёмки.
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s files/pi-ruclaw/tests -p 'test_*.py'
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s files/pi-ruclaw/runner/tests -p 'test_*.py'
 node files/pi-ruclaw/tests/runtime-smoke.mjs
-node --import ./files/pi-ruclaw/tests/peers.mjs --test files/pi-extensions/tests/plan-cycle.test.ts files/pi-ruclaw/tests/work-cycles.test.mjs
+node --import ./files/pi-ruclaw/tests/peers.mjs --test files/pi-extensions/tests/plan-cycle.test.ts files/pi-extensions/tests/tasks.test.ts files/pi-ruclaw/tests/work-cycles.test.mjs
 python3 files/pi-ruclaw/launch.py --check
 ```
 

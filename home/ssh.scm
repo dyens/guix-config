@@ -172,13 +172,19 @@
                 (name "fornex")
                 (host-name "81.85.77.10")
                 (user "dyens")
-                (identity-file "~/.ssh/fornex"))
+                (identity-file "~/.ssh/fornex")
+                (extra-content "  KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521\n"))
                (openssh-host
                 (name "guixvm")
                 (host-name "127.0.0.1")
                 (user "dyens")
                 (port 10022)
                 (identity-file "~/.ssh/guix"))
+               (openssh-host
+                (name "router")
+                (host-name "192.168.0.1")
+                (user "admin")
+                (port 22))
                (openssh-host
                 (name "ruclaw-vm")
                 (host-name "172.31.16.25")

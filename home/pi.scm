@@ -51,7 +51,9 @@
                    `((".pi/agent/prompts/wait-what.md"
                       ,(local-file "../files/pi-ruclaw/prompts/wait-what.md"))
                      (".pi/agent/prompts/compare.md"
-                      ,(local-file "../files/pi-ruclaw/prompts/compare.md"))))
+                      ,(local-file "../files/pi-ruclaw/prompts/compare.md"))
+                     (".pi/agent/prompts/ruclaw-incident.md"
+                      ,(local-file "../files/pi-ruclaw/prompts/ruclaw-incident.md"))))
 
    (simple-service 'pi-compare-skill home-files-service-type
                    `((".pi/agent/skills/compare"

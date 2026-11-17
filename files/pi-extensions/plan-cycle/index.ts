@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { registerTasks, taskState } from "./tasks.ts";
 import { realpath } from "node:fs/promises";
 import {
 	activeState, cycleContext, filePath, fingerprint, makeSnapshot, nextTask, readPlan, READ, STATE,
@@ -15,6 +16,7 @@ function alone(ctx: ExtensionContext, toolCallId: string) {
 }
 
 export default function planCycle(pi: ExtensionAPI) {
+	registerTasks(pi, alone);
 	const pending = new Map<string, ReadRecord & { sessionId: string }>();
 	const failures = new Map<string, string>();
 	const compactionNotices = new Set<string>();
@@ -52,6 +54,7 @@ export default function planCycle(pi: ExtensionAPI) {
 		const branch = ctx.sessionManager.getBranch();
 		const active = activeState(branch);
 		if (!active) throw new Error("Сначала /plan-cycle start <plan.md>");
+		if (active.state.workflow === "tasks") throw new Error("Structured tasks: используй task_complete, не plan_cycle_next");
 		const sessionId = sessionKey(ctx), leaf = ctx.sessionManager.getLeafId();
 		if (await realpath(ctx.cwd) !== active.state.cwd) throw new Error("Рабочий каталог изменился");
 		const plan = await readPlan(active.state.planPath);
@@ -103,7 +106,7 @@ export default function planCycle(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "plan_cycle_start",
 		label: "Save original task checkpoint",
-		description: "For an authorized NEW task: after reading the task/scope/permissions and necessary inputs, BEFORE planning or product edits, call ALONE with a task-local scratch plan_path. Saves checkpoint 0 without the pending tool call, then enters planning. Does not grant Git/Docker/publication authority. Existing tasks resume their saved plan instead.",
+		description: "LEGACY Markdown v2 only. For new tasks use task_plan. Saves original checkpoint before manual Markdown planning; call ALONE. No Git/Docker/publication authority.",
 		parameters: Type.Object({ plan_path: Type.String({ minLength: 1 }) }),
 		executionMode: "sequential",
 		async execute(toolCallId, params, signal, _update, ctx) {
@@ -116,7 +119,7 @@ export default function planCycle(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "plan_cycle_next",
 		label: "Next plan step with clean context",
-		description: "After saving the current step result and short plan, finish all tools/children and call ALONE. Refuses INPROGRESS/BLOCKED. Keeps checkpoint 0, current plan and later user instructions, discards prior step conversation. No Git rollback, commit, acceptance or publication. Do not call when no TODO remains.",
+		description: "LEGACY Markdown v2 recovery only; structured tasks use task_complete. After saving result/plan and finishing tools/children call ALONE. Refuses INPROGRESS/BLOCKED. No Git rollback, acceptance or publication.",
 		parameters: Type.Object({}),
 		executionMode: "sequential",
 		async execute(toolCallId, _params, signal, _update, ctx) {
@@ -150,6 +153,7 @@ export default function planCycle(pi: ExtensionAPI) {
 	pi.on("context", async (event, ctx) => {
 		try {
 			const branch = ctx.sessionManager.getBranch(), active = activeState(branch);
+			if (active?.state.workflow === "tasks") taskState(ctx);
 			if (!active) {
 				if (branch.some(entry => entry.type === "custom" && entry.customType === "ruclaw-work-cycle")) throw new Error("Legacy work-cycles: используй pi-ruclaw --legacy-cycles --session <id>; автоматическая миграция запрещена");
 				failures.delete(sessionKey(ctx)); return;

@@ -37,7 +37,7 @@ def plan_cycle_root(root, env):
     candidates = [root.parent / 'pi-extensions/plan-cycle',
                   Path(env.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'pi-plan-cycle']
     for candidate in candidates:
-        if all((candidate / name).is_file() for name in ('index.ts', 'core.ts')):
+        if all((candidate / name).is_file() for name in ('index.ts', 'core.ts', 'tasks.ts')):
             return candidate.resolve()
     raise ValueError('Plan-cycle v2 extension missing; activate Guix Home or use the source checkout')
 
@@ -81,14 +81,15 @@ def make_plan(repo, root=ROOT, environ=None, legacy_cycles=False):
             '--skill', str(skills), '--skill', str(subagents_skill),
             '--extension', str(subagents), '--extension', str(cycles),
             '--prompt-template', str(prompt_template)]
-    compare_template = root / 'prompts/compare.md'
-    if compare_template.is_file():
-        args += ['--prompt-template', str(compare_template)]
+    for name in ('compare.md', 'ruclaw-incident.md'):
+        template = root / 'prompts' / name
+        if template.is_file():
+            args += ['--prompt-template', str(template)]
     if legacy_cycles:
         args += ['--append-system-prompt',
                  'Legacy work-cycles recovery ONLY: continue the existing task through '
                  + str(root / 'skills/implement/references/resume.md')
-                 + '. Do not invoke the new /skill:implement or plan_cycle_start/next. '
+                 + '. Do not invoke the new /skill:implement, task_plan/task_complete or plan_cycle_start/next. '
                  'Do not migrate task bases, permissions or gates silently.']
     args += ['--append-system-prompt',
              'RuClaw profile paths (external to the product checkout):\n'
@@ -128,7 +129,7 @@ def main():
                 'agent_dir': str(ROOT / 'agents'),
                 'skills': str(ROOT / 'skills'),
                 'profile_files': [*PROFILE_FILES, *([] if options.legacy_cycles else ['workflow.md'])],
-                'workflow': 'legacy-work-cycles' if options.legacy_cycles else 'plan-cycle-v2',
+                'workflow': 'legacy-work-cycles' if options.legacy_cycles else 'structured-tasks',
                 'extensions': [args[i + 1] for i, arg in enumerate(args) if arg == '--extension'],
                 'prompt_templates': [args[i + 1] for i, arg in enumerate(args) if arg == '--prompt-template'],
                 'forwarded_arguments': len(forwarded),

@@ -58,7 +58,7 @@ try {
   assert.equal(parent.getAgentsFiles().agentsFiles.length, 0);
   const loadedExtensions = parent.getExtensions();
   assert.deepEqual(loadedExtensions.errors, []);
-  for (const tool of ['plan_cycle_start', 'plan_cycle_next']) assert.ok(loadedExtensions.extensions.some(extension => extension.tools.has(tool)));
+  for (const tool of ['task_plan', 'task_get', 'task_complete', 'task_block', 'task_replan']) assert.ok(loadedExtensions.extensions.some(extension => extension.tools.has(tool)));
   assert.ok(!loadedExtensions.extensions.some(extension => extension.tools.has('ruclaw_next_cycle')));
   // Real Pi request-time hook, including restoration of system/tool state.
   const session = SessionManager.inMemory(cwd);
@@ -86,7 +86,7 @@ try {
   const appended = parent.getAppendSystemPrompt().join('\n');
   assert.ok(appended.includes('PERSONAL_CANARY'));
   assert.ok(appended.includes('RuClaw Pi — project profile'));
-  assert.ok(appended.includes('Default implementation workflow: plan-cycle v2'));
+  assert.ok(appended.includes('Default implementation workflow: structured tasks'));
   assert.ok(!appended.includes('TEAM_CONTEXT_CANARY'));
   assert.ok(!appended.includes('GLOBAL_AUTOLOAD_CANARY'));
   const skills = parent.getSkills().skills.map(s => s.name);
@@ -148,7 +148,7 @@ try {
       .includes('Ignore any other output filename or output path'));
     assert.ok(validateFileOnlyOutputMode('file-only', undefined, name));
     assert.ok(agent.systemPrompt.includes('result-contract.md'));
-    assert.ok(agent.systemPrompt.includes('short.md'));
+    assert.ok(agent.systemPrompt.includes(name === 'ruclaw-reviewer' || (ponytail && name !== 'ruclaw-ops') ? 'short.md' : 'result.md'));
     assert.ok(!agent.systemPrompt.includes('2,500'));
     assert.ok(agent.systemPrompt.includes('PI_RUCLAW_GLOBALS'));
     assert.ok(agent.systemPrompt.includes('$PI_RUCLAW_ROOT/profile/project.md'));
@@ -173,7 +173,7 @@ try {
   await normal.reload();
   assert.ok(normal.getAgentsFiles().agentsFiles.some(f => f.content.includes('TEAM_CONTEXT_CANARY')));
   assert.ok(normal.getAgentsFiles().agentsFiles.some(f => f.content.includes('GLOBAL_AUTOLOAD_CANARY')));
-  console.log('PASS: real Pi parent loading, personal context, explicit skills, reviewer/ops short/detail contracts and default plan-cycle v2, child launch noContextFiles, prompt stripping and unchanged normal loading');
+  console.log('PASS: real Pi parent loading, personal context, explicit skills, reviewer/ops compact results and default structured tasks, child launch noContextFiles, prompt stripping and unchanged normal loading');
 } finally {
   hooks.deregister();
   fs.rmSync(tmp, { recursive: true, force: true });

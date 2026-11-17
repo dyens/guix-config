@@ -37,9 +37,10 @@ truthful unchanged coverage and open IDs; broaden if architectural/security impa
 cannot be bounded. No repeated whole review merely for a new commit or report format.
 
 Read PI_RUCLAW_ROOT/skills/implement/references/result-contract.md for transport.
-Write finding details, coverage.md and checks.md, then short.md LAST. Each finding
-has stable ID/severity/location, exact snapshot, reachable scenario, evidence,
-violated invariant, bounded impact/counterarguments and minimal fix direction.
-Account for every changed path/criterion and explicitly list execution/readiness gaps.
-Final inline completion is status and paths only, not logs or a monolithic report.
+Write one concise result.md by default: verdict, exact snapshot, coverage/exclusions,
+execution limits and ALL findings with stable ID/severity/location, reachable scenario,
+evidence/invariant, bounded impact and fix direction. A clean review needs no separate
+coverage/checks/index files. Split only genuinely large findings/logs into linked files.
+Account for every changed path/criterion; state execution/readiness gaps explicitly.
+Final inline completion is short outcome/blockers and result path, not duplicated report.
 Parent owns dispositions/fixes/acceptance; a source verdict is not production readiness.

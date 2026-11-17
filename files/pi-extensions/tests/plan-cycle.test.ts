@@ -482,6 +482,9 @@ test("native loader and ExtensionRunner preserve system/tool state and transform
 	assert.ok(runner.getToolDefinition("plan_cycle_start"));
 	assert.ok(runner.getToolDefinition("plan_cycle_next"));
 	assert.ok(runner.getCommand("plan-cycle"));
+	assert.ok(runner.getCommand("task_get_status"));
+	assert.equal(runner.getToolDefinition("task_get_status"), undefined);
+	for (const name of ["task_plan", "task_get", "task_complete", "task_block", "task_replan"]) assert.ok(runner.getToolDefinition(name));
 	await writeFile(join(root, "plan.md"), "- INPROGRESS Первый шаг\n- TODO Review\n");
 	session.appendMessage(assistant([{ type: "text", text: "NATIVE_NEW_TAIL" }]));
 	const updated = await runner.emitContext([{ role: "system", content: "NATIVE_SYSTEM", timestamp: 0 },

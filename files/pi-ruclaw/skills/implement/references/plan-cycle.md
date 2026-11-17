@@ -1,6 +1,7 @@
-# Default implementation safeguards (plan-cycle v2)
+# Default implementation safeguards (structured tasks)
 
-This is not a second phase engine. Keep one short plan and linked results. The
+Extension owns state and generated plan.md. Short results/checks/handoff live in
+session task entries; no routine result files or report checklist. The
 old executor-contract/work-cycles/resume references remain for explicit legacy
 recovery, not default onboarding. Technical runtime details: the shared
 pi-plan-cycle README (source: files/pi-extensions/plan-cycle/README.md).
@@ -43,9 +44,11 @@ additional push/deploy/history-changing authority does not transfer from an old 
 `/plan-cycle stop` restores ordinary history; use a fresh session, not stop/start,
 for a clean context. Do not disable safeguards or erase unresolved work to save tokens.
 
-Keep plan.md an index of the CURRENT task: short step outcomes and evidence links.
-Move investigation logs, commands, input manifests and dispositions to linked files;
-retain their provenance and unresolved IDs without copying them into every step.
+Do not edit generated plan.md. Use task_complete for short results/checks and living
+notes for current decisions/open IDs/resources. Use files only for large logs,
+complex evidence or substantive findings. No mandatory report per successful step.
+/task_get_status shows counters/path without involving the model. Do not narrate
+routine progress or reload guides just because context changed.
 
 ## Design and checks
 
@@ -85,14 +88,12 @@ files, locks/config/build scripts/assets/toolchain/flags/env and external schema
 services, including untracked and commit-derived inputs. If uncertain, rerun. Never
 call carried evidence a fresh run; exact-head CI remains separate when required.
 
-Keep one linked check index (Markdown is enough), not a second phase engine:
-`check | candidate SHA/tree | scope | toolchain/config/env/resources | command/cwd |
-exit + skips | evidence`. For each descendant list delta, semantic blast radius,
-invalidated checks and carried checks with old/new identities and input-equivalence
-reason. Changed-path equality alone is insufficient. Use Git trees/blobs and targeted
-manifests to establish relevant input identity; no ceremonial whole-repository copy
-or hash scan unless needed for the actual build/test boundary. Unknown inputs mean
-rerun or an explicit gap. Never reuse an old test result as exact-head CI.
+Record check command/cwd, outcome/skips and actual candidate in task_complete checks.
+Record reuse justification only when carrying evidence across changed inputs. A
+separate check index is optional for complex verification, not a mandatory artifact.
+Changed-path equality alone is insufficient; inspect relevant input identity, not
+ceremonial whole-repository hashes. Unknown inputs mean rerun or explicit gap.
+Never reuse an old test result as exact-head CI.
 
 ## Docker and resources
 
@@ -109,7 +110,7 @@ privileged or security-bypass authority from a generic Docker grant.
 Inspect provisioning wrappers BEFORE running them: fixed-name cleanup, shared DBs,
 unsafe mounts and broad build contexts may violate ownership. No parallel shared-DB
 tests without isolation. Keep secrets out of logs/build contexts. Record current
-live resources/ownership/cleanup in a linked result, and settle children before a
+live resources/ownership/cleanup in short living notes (linked detail only if needed), and settle children before a
 context transition. A worktree is not a Docker/network/credentials sandbox.
 
 ## Review and evidence
@@ -143,14 +144,15 @@ permission checks with remembered blanket authority.
 
 An inaccessible scope or unavailable independent reviewer is a gap, not zero defects.
 Every confirmed blocker must be fixed/reviewed or remain explicit. Keep dispositions
-separate from immutable reports. For current tasks plan.md links decisions/reports;
-there is no required current.md/phase manifest database. Follow-ups cover delta and
+separate from immutable reports. For current tasks short notes/handoffs carry dispositions and evidence links;
+there is no required current.md/phase manifest or separate dispositions database. Follow-ups cover delta and
 affected invariants, not ritual full rereviews. Scope/security/concurrency redesign
 may require broader scrutiny when impact is uncertain.
 
-The final result links all criteria and findings, exact base/head/commits, checks
-with command/cwd/exit/evidence, actual review run IDs, publication outcome, remaining
-gates and owned cleanup. No line quotas; keep details out of the short plan/chat.
+The short final result states delivered outcome, checks, review, publication and
+remaining risks. Keep exact refs/check outcomes/review provenance in task results,
+with file links only where useful. No obligatory full final report, hash inventory
+or repeated criterion matrix. Still reconcile all criteria/findings/gates.
 Required skips/blockers mean incomplete requirements unless the user explicitly
 changes the agreed endpoint. Even an authorized source-only endpoint does not prove
 live execution, delivery readiness or production acceptance.

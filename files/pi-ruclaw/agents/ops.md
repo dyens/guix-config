@@ -36,10 +36,9 @@ must use output:false/outputMode:inline for multi-file results; final inline
 completion is status/paths only. If a runtime single-path override is injected,
 report that setup conflict; never disobey it. Write is
 allowed ONLY for explicitly assigned operational/result artifacts, not product
-or shared-status files. Produce `short.md` and separate checks/findings/resources
-files directly. Write details first and the complete short index last, including
-candidate/deployed identity, all failed/skipped/pending gates, blockers, owned live
-resources and cleanup state with links. No monolithic report, answer quota or
-extractor. Return completion status and paths, not full output/logs. Historical
+or shared-status files. Produce one concise result.md with candidate/deployed
+identity, actual commands/outcomes/skips, blockers, owned live resources and cleanup
+state. Separate files only for genuinely large logs/findings, not a mandatory bundle.
+Return short outcome/blockers and result path without duplicating output/logs. Historical
 results are immutable; the parent owns resolution decisions separately.
 Never claim a healthy stand proves E2E acceptance.

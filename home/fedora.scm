@@ -3,4 +3,6 @@
 
 (make-home
  #:repo "/home/dyens/vms/guix-config"
- #:homerec "guix home reconfigure -L /home/dyens/vms/guix-config  /home/dyens/vms/guix-config/home/fedora.scm")
+ ;; The file already sets %load-path above. -L would also make Guix scan
+ ;; this entire repository for package modules, including non-module configs.
+ #:homerec "guix home reconfigure /home/dyens/vms/guix-config/home/fedora.scm")

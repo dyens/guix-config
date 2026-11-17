@@ -22,10 +22,10 @@ def prepare(destination, source=HERE.parent):
         if digest(vendor / item['path']) != item['sha256']:
             raise ValueError(f"Upstream content changed: {item['path']}")
     implement = (source / 'skills/implement/SKILL.md').read_text()
-    title = '# Implement — plan-cycle v2 (default)\n'
+    title = '# Implement — structured tasks (default)\n'
     if implement.count(title) != 1:
-        raise ValueError('Unsupported implement skill: expected current plan-cycle v2')
-    implement = implement.replace(title, '# Implement — plan-cycle v2 + Ponytail full\n\n'
+        raise ValueError('Unsupported implement skill: expected structured tasks')
+    implement = implement.replace(title, '# Implement — structured tasks + Ponytail full\n\n'
         'Before intake/checkpoint 0 read `../ponytail/SKILL.md` IN FULL and use level full.\n'
         'It replaces default code-design policy; the process below stays unchanged.\n')
     safeguards = (source / 'skills/implement/references/plan-cycle.md').read_text()
@@ -47,7 +47,7 @@ def prepare(destination, source=HERE.parent):
     engine = source.parent / 'pi-extensions/plan-cycle'
     if not engine.is_dir():
         engine = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'pi-plan-cycle'
-    for path in [source / 'launch.py', engine / 'core.ts', engine / 'index.ts']:
+    for path in [source / 'launch.py', engine / 'core.ts', engine / 'index.ts', engine / 'tasks.ts']:
         if not path.is_file():
             raise ValueError(f'Required source missing: {path}')
     destination.mkdir(parents=True, exist_ok=False)

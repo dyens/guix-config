@@ -16,6 +16,8 @@ export const MAX_PLAN_BYTES = 64 * 1024;
 export interface BoundarySnapshot {
 	plan: string;
 	staleReads: { entryId: string; path: string; reason: string }[];
+	// Canonical call/result entries, verified and bounded at the boundary only.
+	carriedReadIds?: string[];
 }
 export interface CycleState {
 	version: 2;
@@ -25,6 +27,9 @@ export interface CycleState {
 	checkpointId: string;
 	cycle: number;
 	mode: "planning" | "step";
+	workflow?: "tasks";
+	// Boundary commits tasks + context snapshot as ONE durable session entry.
+	tasks?: import("./tasks.ts").Tasks;
 	snapshot: BoundarySnapshot;
 	// The state entry itself is the boundary. A tool's result arrives after it.
 	skipToolCallId?: string;
@@ -46,6 +51,8 @@ export function activeState(branch: SessionEntry[]): ActiveState | undefined {
 		if (state?.enabled === false) return undefined;
 		if (entry.customType === LEGACY_STATE) throw new Error("Legacy plan-cycle v1: сохрани handoff; выключи режим и создай новый checkpoint, не меняй его незаметно при reload");
 		if (state?.version !== 2 || state.enabled !== true || typeof state.snapshot?.plan !== "string" ||
+			(state.workflow !== undefined && state.workflow !== "tasks") ||
+			(state.snapshot.carriedReadIds !== undefined && (!Array.isArray(state.snapshot.carriedReadIds) || state.snapshot.carriedReadIds.some(id => typeof id !== "string"))) ||
 			!Array.isArray(state.snapshot.staleReads) || state.snapshot.staleReads.some(read =>
 				typeof read.entryId !== "string" || typeof read.path !== "string" || typeof read.reason !== "string")) {
 			throw new Error("Повреждено состояние plan-cycle");
@@ -144,7 +151,7 @@ export const PROTOCOL = [
 // Called exactly at start/next, never while assembling a request inside a step.
 // Persist decisions, not copies of entire source messages, so reload is stable.
 export async function makeSnapshot(branch: SessionEntry[], projection: SessionProjection,
-	checkpointId: string, cwd: string, planPath: string, plan: string): Promise<BoundarySnapshot> {
+	checkpointId: string, cwd: string, planPath: string, plan: string, carryReads = false): Promise<BoundarySnapshot> {
 	const checkpoint = branch.findIndex(entry => entry.id === checkpointId);
 	if (checkpoint < 0) throw new Error("Checkpoint отсутствует");
 	const prefixIds = new Set(branch.slice(0, checkpoint + 1).map(entry => entry.id));
@@ -183,8 +190,55 @@ export async function makeSnapshot(branch: SessionEntry[], projection: SessionPr
 			if (reason) staleReads.push({ entryId: item.sourceEntry.id, path, reason });
 		}
 	}
-	return { plan, staleReads };
+	if (!carryReads) return { plan, staleReads };
+	// Carry only small native text read pairs, newest per path/range. Never carry
+	// assistant reasoning/sibling calls, images, failed reads or canonical omissions.
+	const calls = new Map<string, { entryId: string; path: string; key: string }>();
+	const candidates: { callId: string; resultId: string; path: string; key: string; bytes: number; record?: ReadRecord }[] = [];
+	for (const item of projection.entries) {
+		if (prefixIds.has(item.sourceEntry.id)) continue;
+		for (const message of item.messages) {
+			if (message.role === "assistant") {
+				for (const block of message.content) {
+					if (block.type === "toolCall" && block.name === "read" && typeof block.arguments.path === "string") {
+						const path = filePath(block.arguments.path, cwd);
+						calls.set(block.id, { entryId: item.sourceEntry.id, path, key: `${path}:${block.arguments.offset ?? 1}:${block.arguments.limit ?? "all"}` });
+					}
+				}
+			} else if (message.role === "toolResult") {
+				const call = calls.get(message.toolCallId); calls.delete(message.toolCallId);
+				if (call && message.toolName === "read" && !message.isError && message.content.every(c => c.type === "text")) {
+					candidates.push({ callId: call.entryId, resultId: item.sourceEntry.id, path: call.path, key: call.key,
+						bytes: Buffer.byteLength(JSON.stringify(message)), record: records.get(message.toolCallId) });
+				}
+			}
+		}
+	}
+	const carriedReadIds: string[] = [], seen = new Set<string>();
+	let bytes = 0, count = 0;
+	// Prefer small instruction/docs reads over incidental source reads; newest first
+	// within each class. Source will still be reread when missing/stale and needed.
+	const ordered = candidates.reverse().sort((a, b) => Number(/\.md$/i.test(b.path)) - Number(/\.md$/i.test(a.path)));
+	for (const candidate of ordered) {
+		if (seen.has(candidate.key)) continue;
+		seen.add(candidate.key);
+		if (candidate.path === planPath || count >= 8 || bytes + candidate.bytes > 24 * 1024 || !candidate.record?.fingerprint) continue;
+		let hash = current.get(candidate.path);
+		if (!hash) { hash = fingerprint(candidate.path); current.set(candidate.path, hash); }
+		if (await hash !== candidate.record.fingerprint) continue;
+		carriedReadIds.push(candidate.callId, candidate.resultId); bytes += candidate.bytes; count++;
+	}
+	return { plan, staleReads, carriedReadIds };
 }
+
+const TASK_PROTOCOL = [
+	"Structured task workflow. Extension owns statuses, transitions and generated plan.md; do not edit it or call plan_cycle_next/start.",
+	"Execute current active step. Finish all tools/children, then task_complete ALONE with short result/checks/handoff. No routine report/status files or progress narration.",
+	"task_block preserves debugging context; task_replan revises remaining work without reset. Neither changes user scope/permissions. DONE steps do not prove acceptance.",
+	"Original task and newer user instructions/questionnaire evidence are preserved. Cancellation, errors or unanswered questions НЕ означают согласие. User corrections override agent notes.",
+	"Current plan and verified carried reads are frozen at step boundary. Use newer read/edit/write results within step. Read only missing/stale relevant files; do not reload guides or sources merely because a step changed.",
+	"Carried read pairs are bounded (8 reads / 24 KiB); bash/search/reasoning may be stale. This is not a filesystem snapshot or sandbox. Use task_get(id) only for missing archived detail.",
+].join("\n");
 
 export interface ContextInput {
 	messages: AgentMessage[];
@@ -277,6 +331,22 @@ export async function cycleContext(input: ContextInput): Promise<AgentMessage[]>
 	}
 	if (pending.size) throw new Error("Незавершённый ask_user_question на границе шага");
 
+	const readEntries = new Set(state.snapshot.carriedReadIds ?? []);
+	const readCalls = new Map<AgentMessage, Set<string>>(), readResults = new Set<AgentMessage>();
+	const pendingReads = new Map<string, { message: AgentMessage; entryId: string }>();
+	for (const { message, index } of located) {
+		const entryId = branch[index].id;
+		if (index <= checkpoint || index > boundary || !readEntries.has(entryId)) continue;
+		if (message.role === "assistant") {
+			for (const block of message.content) if (block.type === "toolCall" && block.name === "read") pendingReads.set(block.id, { message, entryId });
+		} else if (message.role === "toolResult" && message.toolName === "read") {
+			const call = pendingReads.get(message.toolCallId);
+			if (call) {
+				const ids = readCalls.get(call.message) ?? new Set<string>(); ids.add(message.toolCallId); readCalls.set(call.message, ids);
+				readResults.add(message); pendingReads.delete(message.toolCallId);
+			}
+		}
+	}
 	const prefix: AgentMessage[] = [], carried: AgentMessage[] = [], tail: AgentMessage[] = [];
 	for (const { message, index } of located) {
 		if (message.role === "custom" && message.customType === PLAN_MESSAGE) continue;
@@ -284,15 +354,16 @@ export async function cycleContext(input: ContextInput): Promise<AgentMessage[]>
 		if (index <= checkpoint) prefix.push(refresh(message, branch[index].id));
 		else if (index <= boundary) {
 			// Keep actual newer user messages verbatim, not summaries inferred by an LLM.
-			if (message.role === "user" || questionResults.has(message)) carried.push(message);
+			if (message.role === "user" || questionResults.has(message) || readResults.has(message)) carried.push(message);
 			else if (message.role === "assistant") {
-				const ids = questionCalls.get(message);
-				if (ids) carried.push({ ...message, content: message.content.filter(block => block.type === "toolCall" && ids.has(block.id)) });
+				const ids = new Set([...(questionCalls.get(message) ?? []), ...(readCalls.get(message) ?? [])]);
+				if (ids.size) carried.push({ ...message, content: message.content.filter(block => block.type === "toolCall" && ids.has(block.id)) });
 			}
 		} else tail.push(message);
 	}
-	const text = [PROTOCOL, `Режим: ${state.mode}; цикл: ${state.cycle}.`,
-		state.mode === "planning" ? "Подготовь/согласуй короткий план. Не начинай реализацию до перехода plan_cycle_next." : "Продолжи первый незавершённый шаг плана.",
+	const text = [state.workflow === "tasks" ? TASK_PROTOCOL : PROTOCOL, `Режим: ${state.mode}; цикл: ${state.cycle}.`,
+		state.workflow === "tasks" ? "Продолжи текущий active шаг. При отсутствии active сверь gates и заверши ответ; новый план только для реального follow-up этой задачи."
+			: state.mode === "planning" ? "Подготовь/согласуй короткий план. Не начинай реализацию до перехода plan_cycle_next." : "Продолжи первый незавершённый шаг плана.",
 		state.snapshot.staleReads.length ? `На границе шага требовали актуального чтения при использовании:\n${[...new Set(state.snapshot.staleReads.map(read => read.path))].map(path => `- ${path}`).join("\n")}` : "На границе шага не обнаружено устаревших read results checkpoint.",
 		`CURRENT PLAN AT STEP START (${state.planPath})\n${state.snapshot.plan}\nEND CURRENT PLAN`,
 		"Дальнейшие сообщения текущего шага, включая обновления плана и новые пользовательские ограничения, имеют более свежий контекст.",

@@ -53,7 +53,7 @@ class LauncherTests(unittest.TestCase):
         (self.agent_dir / 'npm/node_modules/pi-subagents/index.js').write_text('// runtime fixture')
         self.extension_dir = self.base / 'pi-extensions/plan-cycle'
         self.extension_dir.mkdir(parents=True)
-        for name in ('index.ts', 'core.ts'):
+        for name in ('index.ts', 'core.ts', 'tasks.ts'):
             (self.extension_dir / name).write_text('// plan-cycle fixture')
         self.env = {'PATH': os.environ['PATH'], 'PI_CODING_AGENT_DIR': str(self.agent_dir),
                     'XDG_CONFIG_HOME': str(self.base / 'xdg')}
@@ -153,13 +153,30 @@ class LauncherTests(unittest.TestCase):
         self.assertIn('.pi/agent/prompts/compare.md', service)
         self.assertIn('.pi/agent/skills/compare', service)
 
+    def test_incident_template_is_loaded_and_deployed_with_collector(self):
+        template = self.config / 'prompts/ruclaw-incident.md'
+        template.write_text('Collect session diagnostics\n')
+        args = self.plan()[2]
+        templates = [args[i + 1] for i, arg in enumerate(args) if arg == '--prompt-template']
+        self.assertEqual(templates, [str(self.config / 'prompts/wait-what.md'), str(template)])
+        service = (ROOT.parents[1] / 'home/pi.scm').read_text()
+        self.assertIn('.pi/agent/prompts/ruclaw-incident.md', service)
+        self.assertIn('../files/pi-ruclaw/prompts/ruclaw-incident.md', service)
+        self.assertIn('(local-file "../files/pi-ruclaw" "pi-ruclaw" #:recursive? #t)', service)
+        content = (ROOT / 'prompts/ruclaw-incident.md').read_text()
+        for fragment in ('argument-hint:', '$1', '$2', '$3', 'PI_RUCLAW_ROOT',
+                         'diagnostics/collect-session.py', 'manifest.json', 'summary.json',
+                         'Exit 2', 'Не дублируй сбор ручными', 'best effort'):
+            self.assertIn(fragment, content)
+        self.assertTrue((ROOT / 'diagnostics/collect-session.py').is_file())
+
     def test_missing_prompt_template_fails_before_launch(self):
         (self.config / 'prompts/wait-what.md').unlink()
         with self.assertRaisesRegex(ValueError, 'Required prompt template missing'):
             self.plan()
 
     def test_missing_plan_extension_fails_before_launch(self):
-        for name in ('index.ts', 'core.ts'):
+        for name in ('index.ts', 'core.ts', 'tasks.ts'):
             path = self.extension_dir / name
             content = path.read_text()
             path.unlink()
@@ -236,7 +253,7 @@ class LauncherTests(unittest.TestCase):
         report = json.loads(output.getvalue())
         self.assertEqual(report['profile_files'], ['project.md', 'areas.md', 'testing.md', 'workflow.md'])
         self.assertFalse(report['project_context_autoload'])
-        self.assertEqual(report['workflow'], 'plan-cycle-v2')
+        self.assertEqual(report['workflow'], 'structured-tasks')
         self.assertEqual(report['prompt_templates'], [str(self.config / 'prompts/wait-what.md')])
         self.assertNotIn('source_audit', report)
         execute.assert_not_called()

@@ -30,7 +30,7 @@ class PonytailTests(unittest.TestCase):
             for name in ('ponytail', 'ponytail-review'):
                 self.assertEqual((runtime / f'skills/{name}/SKILL.md').read_bytes(),
                                  (ROOT / f'ponytail/vendor/skills/{name}/SKILL.md').read_bytes())
-            for name in ('core.ts', 'index.ts'):
+            for name in ('core.ts', 'index.ts', 'tasks.ts'):
                 self.assertEqual((runtime.parent / f'pi-extensions/plan-cycle/{name}').read_bytes(),
                                  (ROOT.parent / f'pi-extensions/plan-cycle/{name}').read_bytes())
             for path in ('launch.py', 'profile/testing.md', 'agents/ops.md', 'prompts/wait-what.md',
@@ -39,7 +39,7 @@ class PonytailTests(unittest.TestCase):
                 self.assertEqual((runtime / path).read_bytes(), (ROOT / path).read_bytes())
             skill = (runtime / 'skills/implement/SKILL.md').read_text()
             self.assertIn('read `../ponytail/SKILL.md` IN FULL', skill)
-            for token in ('plan_cycle_start', 'plan_cycle_next', 'BLOCKED',
+            for token in ('task_plan', 'task_complete', 'task_block',
                           'ruclaw-plan-reviewer', 'Only publish when authorized',
                           'Standing implement permissions', 'Ordinary LOCAL commits',
                           'No default permission for push/MR publication'):

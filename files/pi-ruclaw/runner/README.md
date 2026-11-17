@@ -42,8 +42,8 @@ Runner использует `launch.py`, `profile/`, `agents/` и `skills/` из
   колонке. Если предыдущий pane закрыт, используется последний оставшийся pane
   этой колонки; если закрыты все — снова split справа от runner.
 - В новом pane вызывается `/skill:implement` для одной задачи.
-- Внутри задачи используется default plan-cycle v2: intake → `plan_cycle_start`
-  → короткий последовательный план → шаги через `plan_cycle_next` → проверки и
+- Внутри задачи используются structured tasks: intake → `task_plan`
+  → шаги через `task_complete` (короткий итог/handoff, без обязательных отчётов) → проверки и
   финальный fresh `ruclaw-plan-reviewer`. Findings становятся новым планом исправлений.
   План/инвалидизация чтений заморожены внутри шага для prefix cache. Publication,
   task status и cleanup остаются обязательными согласованными gates runner.
