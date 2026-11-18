@@ -9,8 +9,12 @@
 ;;; Бинарник собран под FHS и ищет /lib64/ld-linux-x86-64.so.2. В наших
 ;;; системах этот путь даёт systems/fhs.scm; сам ELF не патчим, потому что
 ;;; Bun-compiled executable после patchelf падает при старте.
+;;; Runtime wrapper добавляет libgcc_s.so.1 через явную зависимость пакета:
+;;; это работает и при неинтерактивном запуске, без Bash-функции из bashrc.
 
 (define-module (packages pi-coding-agent)
+  #:use-module (gnu packages bash)
+  #:use-module (gnu packages gcc)
   #:use-module (guix build-system gnu)
   #:use-module (guix download)
   #:use-module (guix gexp)
@@ -46,16 +50,26 @@
           ;; systems/base.scm provides that FHS loader path.
           (delete 'validate-runpath)
           (replace 'install
-            (lambda* (#:key outputs #:allow-other-keys)
+            (lambda* (#:key inputs outputs #:allow-other-keys)
               (let* ((out (assoc-ref outputs "out"))
                      (bin (string-append out "/bin"))
                      (share (string-append out "/share/pi-coding-agent"))
-                     (exe (string-append share "/pi")))
+                     (exe (string-append share "/pi"))
+                     (launcher (string-append bin "/pi"))
+                     (shell (search-input-file inputs "/bin/sh"))
+                     (runtime-lib (string-append (assoc-ref inputs "gcc") "/lib")))
                 (mkdir-p share)
                 (copy-recursively "." share)
                 (chmod exe #o755)
                 (mkdir-p bin)
-                (symlink exe (string-append bin "/pi"))))))))
+                ;; Do not patch the standalone ELF or depend on interactive
+                ;; shell functions. Keep the library path scoped to Pi only.
+                (call-with-output-file launcher
+                  (lambda (port)
+                    (format port "#!~a~%export LD_LIBRARY_PATH=~s${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}~%exec ~s \"$@\"~%"
+                            shell runtime-lib exe)))
+                (chmod launcher #o755)))))))
+    (inputs (list bash-minimal `(,gcc "lib")))
     (supported-systems '("x86_64-linux"))
     (home-page "https://pi.dev")
     (synopsis "Агентский CLI для программирования Pi")

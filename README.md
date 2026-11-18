@@ -256,10 +256,16 @@ Guix скачает файл и напечатает ожидаемый хеш �
 `packages/pi-coding-agent.scm` берёт официальный standalone-архив
 `pi-linux-x64.tar.gz` из GitHub Releases. ELF не патчим: Bun-compiled
 бинарник после `patchelf` падает при старте, поэтому он опирается на
-`/lib64/ld-linux-x86-64.so.2` из `systems/fhs.scm`. Wrapper также добавляет
-профильные `lib/` в `LD_LIBRARY_PATH`, чтобы Pi видел `libgcc_s.so.1` из
-`gcc-toolchain` во время OAuth/login. Для обновления
-поменяйте `version`, поставьте временно невалидный `sha256` и запустите
+`/lib64/ld-linux-x86-64.so.2` из `systems/fhs.scm`. Пакет устанавливает настоящий
+`bin/pi` wrapper вместо symlink: он добавляет `lib/` явного input `gcc:lib`
+в `LD_LIBRARY_PATH` только для процесса Pi. Это даёт `libgcc_s.so.1` при
+неинтерактивном запуске из Python/direnv/бота, где Bash-функция `pi()` не работает.
+Wrapper восстанавливает нужный runtime даже после `env -u LD_LIBRARY_PATH`
+в `pi-ruclaw/launch.py`; менять код вызывающего приложения не требуется.
+После изменения пакета перенесите `packages/pi-coding-agent.scm` на целевую
+машину и выполните `guix home reconfigure ~/guix-config/home/programming.scm`
+(или `homerec`): копирования только репозитория бота недостаточно.
+Для обновления версии поменяйте `version`, поставьте временно невалидный `sha256` и запустите
 сборку — Guix напечатает ожидаемый хеш:
 
 ```sh
